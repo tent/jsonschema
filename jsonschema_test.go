@@ -20,6 +20,7 @@ func TestDraft4(t *testing.T) {
 func testFileRunner(t *testing.T) func(string, os.FileInfo, error) error {
 	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			t.Log("Are you sure you ran `git submodule update`?")
 			return err
 		}
 		if info.IsDir() {
