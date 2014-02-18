@@ -11,16 +11,15 @@ import (
 
 func TestDraft4(t *testing.T) {
 	testResources := filepath.Join("JSON-Schema-Test-Suite", "tests", "draft4")
-	_, err := os.Stat(testResources)
-	if err != nil {
-		t.Error("Test suite missing. Run `git submodule update` to download it.")
+	if _, err := os.Stat(testResources); err != nil {
+		t.Error("Test suite missing. Run `git submodule update --init` to download it.")
 	}
 	var failures, successes int
-	err = filepath.Walk(testResources, testFileRunner(t, &failures, &successes))
+	err := filepath.Walk(testResources, testFileRunner(t, &failures, &successes))
 	if err != nil {
 		t.Error(err.Error())
 	}
-	t.Logf("%d failures, %d successes.", failures, successes)
+	t.Logf("%d failed, %d succeeded.", failures, successes)
 }
 
 func testFileRunner(t *testing.T, failures, successes *int) func(string, os.FileInfo, error) error {
