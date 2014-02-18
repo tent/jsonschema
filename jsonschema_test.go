@@ -15,13 +15,15 @@ func TestDraft4(t *testing.T) {
 	if err != nil {
 		t.Error("Test suite missing. Run `git submodule update` to download it.")
 	}
-	err = filepath.Walk(testResources, testFileRunner(t))
+	var failures, successes int
+	err = filepath.Walk(testResources, testFileRunner(t, &failures, &successes))
 	if err != nil {
 		t.Error(err.Error())
 	}
+	t.Logf("%d failures, %d successes.", failures, successes)
 }
 
-func testFileRunner(t *testing.T) func(string, os.FileInfo, error) error {
+func testFileRunner(t *testing.T, failures, successes *int) func(string, os.FileInfo, error) error {
 	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -50,6 +52,9 @@ func testFileRunner(t *testing.T) func(string, os.FileInfo, error) error {
 				message := failureMessage(errorList, test, description, path)
 				if len(message) > 0 {
 					t.Error(message)
+					*failures += 1
+				} else {
+					*successes += 1
 				}
 			}
 		}
@@ -65,15 +70,15 @@ func failureMessage(errorList []ValidationError, tst testInstance, cse testCase,
 		validated = false
 	}
 
-	var failure string
+	var failureName string
 	if validated && !tst.Valid {
-		failure = "schema.Validate validated bad data."
+		failureName = "schema.Validate validated bad data."
 	} else if !validated && tst.Valid {
-		failure = "schema.Validate failed to validate good data."
+		failureName = "schema.Validate failed to validate good data."
 	}
 
 	var message string
-	if len(failure) > 0 {
+	if len(failureName) > 0 {
 		message = fmt.Sprintf(`%s
 file: %s
 test case description: %s
@@ -85,7 +90,7 @@ result of schema.Validate:
 	actual: %t
 	actual validation errors: %s
 
-`, failure, path, cse.Description, cse.Schema, tst.Description, tst.Data, tst.Valid, validated, errorList)
+`, failureName, path, cse.Description, cse.Schema, tst.Description, tst.Data, tst.Valid, validated, errorList)
 	}
 	return message
 }
