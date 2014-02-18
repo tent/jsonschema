@@ -1,7 +1,6 @@
 # Test Setup
 
-    git submodule init
-    git submodule update
+    git submodule update --init
 
 # Test
 

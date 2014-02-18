@@ -11,16 +11,19 @@ import (
 
 func TestDraft4(t *testing.T) {
 	testResources := filepath.Join("JSON-Schema-Test-Suite", "tests", "draft4")
-	err := filepath.Walk(testResources, testFileRunner(t))
+	_, err := os.Stat(testResources)
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error("Test suite missing. Run `git submodule update` to download it.")
+	}
+	err = filepath.Walk(testResources, testFileRunner(t))
+	if err != nil {
+		t.Error(err.Error())
 	}
 }
 
 func testFileRunner(t *testing.T) func(string, os.FileInfo, error) error {
 	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			t.Log("Are you sure you ran `git submodule update`?")
 			return err
 		}
 		if info.IsDir() {
@@ -46,7 +49,7 @@ func testFileRunner(t *testing.T) func(string, os.FileInfo, error) error {
 				errorList := schema.Validate(test.Data)
 				message := failureMessage(errorList, test, description, path)
 				if len(message) > 0 {
-					t.Errorf(message)
+					t.Error(message)
 				}
 			}
 		}
