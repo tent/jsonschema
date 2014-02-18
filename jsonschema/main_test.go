@@ -44,15 +44,15 @@ func processTestFile(path string, _ os.FileInfo, err error) error {
 	}
 
 	for _, description := range testFile {
-		schema, err := Parse(bytes.NewReader(description.schema))
+		schema, err := Parse(bytes.NewReader(description.Schema))
 		if err != nil {
 			return err
 		}
-		for _, test := range description.tests {
-			errorList := schema.Validate(test.data)
-			if len(errorList) > 0 && test.valid {
+		for _, test := range description.Tests {
+			errorList := schema.Validate(test.Data)
+			if len(errorList) > 0 && test.Valid {
 				return errors.New("Returned invalid for valid JSON.")
-			} else if len(errorList) == 0 && !test.valid {
+			} else if len(errorList) == 0 && !test.Valid {
 				return errors.New("Returned valid for invalid JSON.")
 			}
 		}
@@ -61,15 +61,15 @@ func processTestFile(path string, _ os.FileInfo, err error) error {
 }
 
 type testDescription struct {
-	description string
-	schema      json.RawMessage
-	properties  json.RawMessage
-	required    json.RawMessage
-	tests       []testInstance
+	Description string
+	Schema      json.RawMessage
+	Properties  json.RawMessage
+	Required    json.RawMessage
+	Tests       []testInstance
 }
 
 type testInstance struct {
-	description string
-	data        json.RawMessage
-	valid       bool
+	Description string
+	Data        json.RawMessage
+	Valid       bool
 }
