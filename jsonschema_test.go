@@ -47,7 +47,9 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 				return err
 			}
 			for _, test := range description.Tests {
-				errorList := schema.Validate(test.Data)
+				var data interface{}
+				json.Unmarshal(test.Data, &data)
+				errorList := schema.Validate(data)
 				message := failureMessage(errorList, test, description, path)
 				if len(message) > 0 {
 					t.Error(message)
