@@ -30,11 +30,19 @@ func (s *Schema) Validate(dataStruct interface{}) []ValidationError {
 			valErrs = append(valErrs, ValidationError{err.Error()})
 		}
 	}
+	if s.Properties != nil && typeString == "map[string]interface{}" {
+		for schemaKey, schemaValue := range *s.Properties {
+			if dataValue, ok := dataStruct.(map[string]interface{})[schemaKey]; ok {
+				valErrs = append(valErrs, schemaValue.Validate(dataValue)...)
+			}
+		}
+	}
 	return valErrs
 }
 
 type Schema struct {
-	Minimum *json.Number `json:"minimum"`
+	Minimum    *json.Number       `json:"minimum"`
+	Properties *map[string]Schema `json:"properties"`
 }
 
 type ValidationError struct {
