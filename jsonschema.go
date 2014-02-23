@@ -14,18 +14,27 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 }
 
 func (s *Schema) Validate(dataStruct interface{}) []ValidationError {
-	var validationErrors []ValidationError
+	var valErrs []ValidationError
+	typeString := typeSwitch(dataStruct)
 	if s.Minimum != nil {
-		if !Minimum(s, dataStruct) {
-			minimumError := ValidationError{"Value below minimum."}
-			validationErrors = append(validationErrors, minimumError)
+		var err error
+		switch typeString {
+		case "int64":
+			err = IntMinimum(s, dataStruct.(int64))
+		case "float64":
+			err = FloatMinimum(s, dataStruct.(float64))
+		default:
+			err = nil
+		}
+		if err != nil {
+			valErrs = append(valErrs, ValidationError{err.Error()})
 		}
 	}
-	return validationErrors
+	return valErrs
 }
 
 type Schema struct {
-	Minimum *float64 `json:"minimum"`
+	Minimum *json.Number `json:"minimum"`
 }
 
 type ValidationError struct {
