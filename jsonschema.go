@@ -15,14 +15,14 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 
 func (s *Schema) Validate(dataStruct interface{}) []ValidationError {
 	var valErrs []ValidationError
-	data, typeString := normalizeType(dataStruct)
+	data := normalizeType(dataStruct)
 	if s.Minimum != nil {
 		err := Minimum(s, data)
 		if err != nil {
 			valErrs = append(valErrs, ValidationError{err.Error()})
 		}
 	}
-	if s.Properties != nil && typeString == "map[string]interface{}" {
+	if s.Properties != nil {
 		for schemaKey, schemaValue := range *s.Properties {
 			if dataValue, ok := data.(map[string]interface{})[schemaKey]; ok {
 				valErrs = append(valErrs, schemaValue.Validate(dataValue)...)
