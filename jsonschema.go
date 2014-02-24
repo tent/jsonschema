@@ -15,7 +15,7 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 
 func (s *Schema) Validate(dataStruct interface{}) []ValidationError {
 	var valErrs []ValidationError
-	data, typeString := typeSwitch(dataStruct)
+	data, typeString := normalizeType(dataStruct)
 	if s.Minimum != nil {
 		err := Minimum(s, data)
 		if err != nil {
