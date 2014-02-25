@@ -15,13 +15,20 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 	return schema, nil
 }
 
-func (s *Schema) Validate(dataStruct interface{}) []ValidationError {
-	data := normalizeType(dataStruct)
+func (s *Schema) Validate(dataStruct interface{}) ([]ValidationError, error) {
+	data, err := normalizeType(dataStruct)
 	var valErrs []ValidationError
-	for _, validator := range s.Validators {
-		valErrs = append(valErrs, validator(data)...)
+	if err != nil {
+		return valErrs, err
 	}
-	return valErrs
+	for _, validator := range s.Validators {
+		newErrors, err := validator(data)
+		if err != nil {
+			return valErrs, err
+		}
+		valErrs = append(valErrs, newErrors...)
+	}
+	return valErrs, nil
 }
 
 func (s *Schema) UnmarshalJSON(bts []byte) error {
@@ -45,7 +52,7 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 }
 
 type Schema struct {
-	Validators []func(interface{}) []ValidationError
+	Validators []func(interface{}) ([]ValidationError, error)
 }
 
 type ValidationError struct {

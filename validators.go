@@ -2,23 +2,22 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
 
-func Properties(val interface{}) func(interface{}) []ValidationError {
-	props, ok := val.(map[string]interface{})
+func Properties(propContainer interface{}) func(interface{}) ([]ValidationError, error) {
+	props, ok := propContainer.(map[string]interface{})
 	if !ok {
-		return func(dataStruct interface{}) []ValidationError {
-			return []ValidationError{}
-		}
+		return nilReturner
 	}
-	return func(dataStruct interface{}) []ValidationError {
+	return func(dataStruct interface{}) ([]ValidationError, error) {
 		var valErrs []ValidationError
 		for schemaKey, schemaValue := range props {
 			dataMap, ok := dataStruct.(map[string]interface{})
 			if !ok {
-				return valErrs
+				return valErrs, errors.New("Properties must be of the type `map[string]interface{}`.")
 			}
 			if dataValue, ok := dataMap[schemaKey]; ok {
 				var schema Schema
@@ -30,21 +29,27 @@ func Properties(val interface{}) func(interface{}) []ValidationError {
 				if err != nil {
 					break
 				}
-				valErrs = append(valErrs, schema.Validate(dataValue)...)
+				newErrors, err := schema.Validate(dataValue)
+				if err != nil {
+					return valErrs, err
+				}
+				valErrs = append(valErrs, newErrors...)
 			}
 		}
-		return valErrs
+		return valErrs, nil
 	}
 }
 
-func Minimum(val interface{}) func(interface{}) []ValidationError {
+func nilReturner(dataStruct interface{}) ([]ValidationError, error) {
+	return []ValidationError{}, nil
+}
+
+func Minimum(val interface{}) func(interface{}) ([]ValidationError, error) {
 	min, ok := val.(json.Number)
 	if !ok {
-		return func(dataStruct interface{}) []ValidationError {
-			return []ValidationError{}
-		}
+		return nilReturner
 	}
-	return func(dataStruct interface{}) []ValidationError {
+	return func(dataStruct interface{}) ([]ValidationError, error) {
 		var isLarger bool
 		switch dataStruct.(type) {
 		case int64:
@@ -54,9 +59,9 @@ func Minimum(val interface{}) func(interface{}) []ValidationError {
 		}
 		if isLarger {
 			minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", min)}
-			return []ValidationError{minErr}
+			return []ValidationError{minErr}, nil
 		}
-		return nil
+		return []ValidationError{}, nil
 	}
 }
 
