@@ -1,27 +1,68 @@
 package jsonschema
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
 
-func Minimum(s *Schema, dataStruct interface{}) error {
-	var isLarger bool
-	switch dataStruct.(type) {
-	case int64:
-		isLarger = isLargerThanInt(s, dataStruct.(int64))
-	case float64:
-		isLarger = isLargerThanFloat(s, dataStruct.(float64))
+func Properties(val interface{}) func(interface{}) []ValidationError {
+	props, ok := val.(map[string]interface{})
+	if !ok {
+		return func(dataStruct interface{}) []ValidationError {
+			return []ValidationError{}
+		}
 	}
-	if isLarger {
-		return fmt.Errorf("Value must be larger than %s.", *s.Minimum)
+	return func(dataStruct interface{}) []ValidationError {
+		var valErrs []ValidationError
+		for schemaKey, schemaValue := range props {
+			dataMap, ok := dataStruct.(map[string]interface{})
+			if !ok {
+				return valErrs
+			}
+			if dataValue, ok := dataMap[schemaKey]; ok {
+				var schema Schema
+				bts, err := json.Marshal(schemaValue)
+				if err != nil {
+					break
+				}
+				err = json.Unmarshal(bts, &schema)
+				if err != nil {
+					break
+				}
+				valErrs = append(valErrs, schema.Validate(dataValue)...)
+			}
+		}
+		return valErrs
 	}
-	return nil
 }
 
-func isLargerThanInt(s *Schema, data int64) bool {
-	if strings.Contains(s.Minimum.String(), ".") {
-		flt, err := s.Minimum.Float64()
+func Minimum(val interface{}) func(interface{}) []ValidationError {
+	min, ok := val.(json.Number)
+	if !ok {
+		return func(dataStruct interface{}) []ValidationError {
+			return []ValidationError{}
+		}
+	}
+	return func(dataStruct interface{}) []ValidationError {
+		var isLarger bool
+		switch dataStruct.(type) {
+		case int64:
+			isLarger = isLargerThanInt(min, dataStruct.(int64))
+		case float64:
+			isLarger = isLargerThanFloat(min, dataStruct.(float64))
+		}
+		if isLarger {
+			minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", min)}
+			return []ValidationError{minErr}
+		}
+		return nil
+	}
+}
+
+func isLargerThanInt(min json.Number, data int64) bool {
+	if strings.Contains(min.String(), ".") {
+		flt, err := min.Float64()
 		if err != nil {
 			return false
 		}
@@ -29,7 +70,7 @@ func isLargerThanInt(s *Schema, data int64) bool {
 			return true
 		}
 	} else {
-		intg, err := s.Minimum.Int64()
+		intg, err := min.Int64()
 		if err != nil {
 			return false
 		}
@@ -40,8 +81,8 @@ func isLargerThanInt(s *Schema, data int64) bool {
 	return false
 }
 
-func isLargerThanFloat(s *Schema, data float64) bool {
-	flt, err := s.Minimum.Float64()
+func isLargerThanFloat(min json.Number, data float64) bool {
+	flt, err := min.Float64()
 	if err != nil {
 		return false
 	}

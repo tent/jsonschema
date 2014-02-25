@@ -1,7 +1,9 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 )
 
@@ -14,27 +16,36 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 }
 
 func (s *Schema) Validate(dataStruct interface{}) []ValidationError {
-	var valErrs []ValidationError
 	data := normalizeType(dataStruct)
-	if s.Minimum != nil {
-		err := Minimum(s, data)
-		if err != nil {
-			valErrs = append(valErrs, ValidationError{err.Error()})
-		}
-	}
-	if s.Properties != nil {
-		for schemaKey, schemaValue := range *s.Properties {
-			if dataValue, ok := data.(map[string]interface{})[schemaKey]; ok {
-				valErrs = append(valErrs, schemaValue.Validate(dataValue)...)
-			}
-		}
+	var valErrs []ValidationError
+	for _, validator := range s.Validators {
+		valErrs = append(valErrs, validator(data)...)
 	}
 	return valErrs
 }
 
+func (s *Schema) UnmarshalJSON(bts []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(bts))
+	decoder.UseNumber()
+	var store interface{}
+	if err := decoder.Decode(&store); err != nil {
+		return err
+	}
+	schemaMap, ok := store.(map[string]interface{})
+	if !ok {
+		return errors.New("Schema must be of the type `map[string]interface{}`.")
+	}
+	if min, ok := schemaMap["minimum"]; ok {
+		s.Validators = append(s.Validators, Minimum(min))
+	}
+	if prop, ok := schemaMap["properties"]; ok {
+		s.Validators = append(s.Validators, Properties(prop))
+	}
+	return nil
+}
+
 type Schema struct {
-	Minimum    *json.Number       `json:"minimum"`
-	Properties *map[string]Schema `json:"properties"`
+	Validators []func(interface{}) []ValidationError
 }
 
 type ValidationError struct {
