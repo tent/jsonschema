@@ -6,6 +6,10 @@ import (
 	"io"
 )
 
+var validatorMap = map[string]func(json.RawMessage) func(interface{}) ([]ValidationError, error){
+	"minimum":    Minimum,
+	"properties": Properties}
+
 func Parse(schemaBytes io.Reader) (*Schema, error) {
 	var schema *Schema
 	if err := json.NewDecoder(schemaBytes).Decode(&schema); err != nil {
@@ -35,11 +39,10 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 	if err := json.NewDecoder(bytes.NewReader(bts)).Decode(&schemaMap); err != nil {
 		return err
 	}
-	if min, ok := schemaMap["minimum"]; ok {
-		s.Validators = append(s.Validators, Minimum(min))
-	}
-	if prop, ok := schemaMap["properties"]; ok {
-		s.Validators = append(s.Validators, Properties(prop))
+	for schemaKey, schemaValue := range schemaMap {
+		if validatorCreator, ok := validatorMap[schemaKey]; ok {
+			s.Validators = append(s.Validators, validatorCreator(schemaValue))
+		}
 	}
 	return nil
 }
