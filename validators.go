@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-func Properties(propContainer interface{}) func(interface{}) ([]ValidationError, error) {
-	props, ok := propContainer.(map[string]interface{})
-	if !ok {
+func Properties(value json.RawMessage) func(interface{}) ([]ValidationError, error) {
+	var props map[string]json.RawMessage
+	if err := json.Unmarshal(value, &props); err != nil {
 		return nilReturner
 	}
 	return func(dataStruct interface{}) ([]ValidationError, error) {
@@ -21,11 +21,7 @@ func Properties(propContainer interface{}) func(interface{}) ([]ValidationError,
 			}
 			if dataValue, ok := dataMap[schemaKey]; ok {
 				var schema Schema
-				bts, err := json.Marshal(schemaValue)
-				if err != nil {
-					break
-				}
-				err = json.Unmarshal(bts, &schema)
+				err := json.Unmarshal(schemaValue, &schema)
 				if err != nil {
 					break
 				}
@@ -44,9 +40,9 @@ func nilReturner(dataStruct interface{}) ([]ValidationError, error) {
 	return []ValidationError{}, nil
 }
 
-func Minimum(val interface{}) func(interface{}) ([]ValidationError, error) {
-	min, ok := val.(json.Number)
-	if !ok {
+func Minimum(value json.RawMessage) func(interface{}) ([]ValidationError, error) {
+	var min json.Number
+	if err := json.Unmarshal(value, &min); err != nil {
 		return nilReturner
 	}
 	return func(dataStruct interface{}) ([]ValidationError, error) {

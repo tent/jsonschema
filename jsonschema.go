@@ -3,7 +3,6 @@ package jsonschema
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"io"
 )
 
@@ -32,15 +31,9 @@ func (s *Schema) Validate(dataStruct interface{}) ([]ValidationError, error) {
 }
 
 func (s *Schema) UnmarshalJSON(bts []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(bts))
-	decoder.UseNumber()
-	var store interface{}
-	if err := decoder.Decode(&store); err != nil {
+	var schemaMap map[string]json.RawMessage
+	if err := json.NewDecoder(bytes.NewReader(bts)).Decode(&schemaMap); err != nil {
 		return err
-	}
-	schemaMap, ok := store.(map[string]interface{})
-	if !ok {
-		return errors.New("Schema must be of the type `map[string]interface{}`.")
 	}
 	if min, ok := schemaMap["minimum"]; ok {
 		s.Validators = append(s.Validators, Minimum(min))
