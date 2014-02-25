@@ -58,9 +58,9 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 					continue
 				}
 
-				validated, err := correctValidation(errorList, path, cse, tst)
+				err = correctValidation(errorList, path, cse, tst)
 				if err != nil {
-					t.Error(failureMessage(err, path, cse, tst, validated, errorList))
+					t.Error(failureMessage(err, path, cse, tst, errorList))
 					*failures += 1
 				} else {
 					*successes += 1
@@ -85,12 +85,8 @@ type testInstance struct {
 	Valid       bool            `json:"valid"`
 }
 
-func correctValidation(errorList []ValidationError, path string, cse testCase, tst testInstance) (bool, error) {
-	validated := true
-	if len(errorList) > 0 {
-		validated = false
-	}
-
+func correctValidation(errorList []ValidationError, path string, cse testCase, tst testInstance) error {
+	validated := len(errorList) == 0
 	var failureName string
 	if validated && !tst.Valid {
 		failureName = "schema.Validate validated bad data."
@@ -99,9 +95,9 @@ func correctValidation(errorList []ValidationError, path string, cse testCase, t
 	}
 
 	if len(failureName) > 0 {
-		return validated, errors.New(failureName)
+		return errors.New(failureName)
 	}
-	return validated, nil
+	return nil
 }
 
 func errorMessage(err error, path string, cse testCase, tst testInstance) string {
@@ -115,7 +111,7 @@ test data: %s
 `, err, path, cse.Description, cse.Schema, tst.Description, tst.Data)
 }
 
-func failureMessage(err error, path string, cse testCase, tst testInstance, validated bool, errorList []ValidationError) string {
+func failureMessage(err error, path string, cse testCase, tst testInstance, errorList []ValidationError) string {
 	return fmt.Sprintf(`%s
 file: %s
 test case description: %s
@@ -127,5 +123,5 @@ result of schema.Validate:
 	actual: %t
 	actual validation errors: %s
 
-`, err.Error(), path, cse.Description, cse.Schema, tst.Description, tst.Data, tst.Valid, validated, errorList)
+`, err.Error(), path, cse.Description, cse.Schema, tst.Description, tst.Data, tst.Valid, len(errorList) == 0, errorList)
 }
