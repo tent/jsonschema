@@ -3,6 +3,7 @@ package jsonschema
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,18 +42,18 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 			return err
 		}
 
-		for _, description := range testFile {
-			schema, err := Parse(bytes.NewReader(description.Schema))
+		for _, cse := range testFile {
+			schema, err := Parse(bytes.NewReader(cse.Schema))
 			if err != nil {
 				return err
 			}
-			for _, test := range description.Tests {
+			for _, tst := range cse.Tests {
 				var data interface{}
-				json.Unmarshal(test.Data, &data)
+				json.Unmarshal(tst.Data, &data)
 				errorList := schema.Validate(data)
-				message := failureMessage(errorList, test, description, path)
-				if len(message) > 0 {
-					t.Error(message)
+				err = correctValidation(path, cse, tst, errorList)
+				if err != nil {
+					t.Error(failureMessage(err, path, cse, tst, errorList))
 					*failures += 1
 				} else {
 					*successes += 1
@@ -61,39 +62,6 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 		}
 		return nil
 	}
-}
-
-func failureMessage(errorList []ValidationError, tst testInstance, cse testCase, path string) string {
-	var validated bool
-	if len(errorList) == 0 {
-		validated = true
-	} else if len(errorList) > 0 {
-		validated = false
-	}
-
-	var failureName string
-	if validated && !tst.Valid {
-		failureName = "schema.Validate validated bad data."
-	} else if !validated && tst.Valid {
-		failureName = "schema.Validate failed to validate good data."
-	}
-
-	var message string
-	if len(failureName) > 0 {
-		message = fmt.Sprintf(`%s
-file: %s
-test case description: %s
-schema: %s
-test instance description: %s
-test data: %s
-result of schema.Validate:
-	expected: %t
-	actual: %t
-	actual validation errors: %s
-
-`, failureName, path, cse.Description, cse.Schema, tst.Description, tst.Data, tst.Valid, validated, errorList)
-	}
-	return message
 }
 
 type testCase struct {
@@ -108,4 +76,34 @@ type testInstance struct {
 	Description string          `json:"description"`
 	Data        json.RawMessage `json:"data"`
 	Valid       bool            `json:"valid"`
+}
+
+func correctValidation(path string, cse testCase, tst testInstance, errorList []ValidationError) error {
+	validated := (len(errorList) == 0)
+	var failureName string
+	if validated && !tst.Valid {
+		failureName = "schema.Validate validated bad data."
+	} else if !validated && tst.Valid {
+		failureName = "schema.Validate failed to validate good data."
+	}
+
+	if len(failureName) > 0 {
+		return errors.New(failureName)
+	}
+	return nil
+}
+
+func failureMessage(err error, path string, cse testCase, tst testInstance, errorList []ValidationError) string {
+	return fmt.Sprintf(`%s
+file: %s
+test case description: %s
+schema: %s
+test instance description: %s
+test data: %s
+result of schema.Validate:
+	expected: %t
+	actual: %t
+	actual validation errors: %s
+
+`, err.Error(), path, cse.Description, cse.Schema, tst.Description, tst.Data, tst.Valid, len(errorList) == 0, errorList)
 }
