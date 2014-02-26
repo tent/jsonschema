@@ -35,6 +35,7 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 	if err := json.Unmarshal(bts, &schemaMap); err != nil {
 		return err
 	}
+	s.vals = make([]Validator, 0, len(schemaMap))
 	for schemaKey, schemaValue := range schemaMap {
 		if typ, ok := validatorMap[schemaKey]; ok {
 			var newValidator = reflect.New(typ).Interface().(Validator)
