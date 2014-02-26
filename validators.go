@@ -50,9 +50,9 @@ func (m minimum) Validate(unnormalized interface{}) []ValidationError {
 	return []ValidationError{}
 }
 
-func (min minimum) isLargerThanInt(data int64) bool {
-	if strings.Contains(min.String(), ".") {
-		flt, err := min.Float64()
+func (m minimum) isLargerThanInt(data int64) bool {
+	if strings.Contains(m.String(), ".") {
+		flt, err := m.Float64()
 		if err != nil {
 			return false
 		}
@@ -60,7 +60,7 @@ func (min minimum) isLargerThanInt(data int64) bool {
 			return true
 		}
 	} else {
-		intg, err := min.Int64()
+		intg, err := m.Int64()
 		if err != nil {
 			return false
 		}
@@ -71,8 +71,8 @@ func (min minimum) isLargerThanInt(data int64) bool {
 	return false
 }
 
-func (min minimum) isLargerThanFloat(data float64) bool {
-	flt, err := min.Float64()
+func (m minimum) isLargerThanFloat(data float64) bool {
+	flt, err := m.Float64()
 	if err != nil {
 		return false
 	}
