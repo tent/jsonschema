@@ -4,11 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"reflect"
 )
 
-var validatorMap = map[string]func(json.RawMessage) func(interface{}) ([]ValidationError, error){
-	"minimum":    Minimum,
-	"properties": Properties}
+var validatorMap = map[string]Validator{
+	"minimum":    minimum{},
+	"properties": properties{}}
+
+type Validator interface {
+	Validate(interface{}) ([]ValidationError, error)
+}
 
 func Parse(schemaBytes io.Reader) (*Schema, error) {
 	var schema *Schema
@@ -24,8 +29,8 @@ func (s *Schema) Validate(dataStruct interface{}) ([]ValidationError, error) {
 	if err != nil {
 		return valErrs, err
 	}
-	for _, validator := range s.Validators {
-		newErrors, err := validator(data)
+	for _, validator := range s.Vals {
+		newErrors, err := validator.Validate(data)
 		if err != nil {
 			return valErrs, err
 		}
@@ -40,15 +45,19 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 		return err
 	}
 	for schemaKey, schemaValue := range schemaMap {
-		if validatorCreator, ok := validatorMap[schemaKey]; ok {
-			s.Validators = append(s.Validators, validatorCreator(schemaValue))
+		if exampleOfType, ok := validatorMap[schemaKey]; ok {
+			var newVal = reflect.New(reflect.TypeOf(exampleOfType)).Interface()
+			if err := json.Unmarshal(schemaValue, newVal); err != nil {
+				return err
+			}
+			s.Vals = append(s.Vals, newVal.(Validator))
 		}
 	}
 	return nil
 }
 
 type Schema struct {
-	Validators []func(interface{}) ([]ValidationError, error)
+	Vals []Validator
 }
 
 type ValidationError struct {

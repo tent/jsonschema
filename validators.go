@@ -1,64 +1,66 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 )
 
-func Properties(value json.RawMessage) func(interface{}) ([]ValidationError, error) {
-	var props map[string]json.RawMessage
-	if err := json.Unmarshal(value, &props); err != nil {
-		return nilReturner
-	}
-	return func(dataStruct interface{}) ([]ValidationError, error) {
-		var valErrs []ValidationError
-		for schemaKey, schemaValue := range props {
-			dataMap, ok := dataStruct.(map[string]interface{})
-			if !ok {
-				return valErrs, errors.New("Properties must be of the type `map[string]interface{}`.")
-			}
-			if dataValue, ok := dataMap[schemaKey]; ok {
-				var schema Schema
-				err := json.Unmarshal(schemaValue, &schema)
-				if err != nil {
-					break
-				}
-				newErrors, err := schema.Validate(dataValue)
-				if err != nil {
-					return valErrs, err
-				}
-				valErrs = append(valErrs, newErrors...)
-			}
+type properties map[string]json.RawMessage
+
+func (p properties) Validate(dataStruct interface{}) ([]ValidationError, error) {
+	var valErrs []ValidationError
+	for schemaKey, schemaValue := range p {
+		dataMap, ok := dataStruct.(map[string]interface{})
+		if !ok {
+			return valErrs, errors.New("Properties must be of the type `map[string]interface{}`.")
 		}
-		return valErrs, nil
+		if dataValue, ok := dataMap[schemaKey]; ok {
+			var schema Schema
+			err := json.Unmarshal(schemaValue, &schema)
+			if err != nil {
+				break
+			}
+			newErrors, err := schema.Validate(dataValue)
+			if err != nil {
+				return valErrs, err
+			}
+			valErrs = append(valErrs, newErrors...)
+		}
 	}
+	return valErrs, nil
 }
 
-func nilReturner(dataStruct interface{}) ([]ValidationError, error) {
+type minimum struct {
+	Val json.Number
+}
+
+func (m *minimum) UnmarshalJSON(bts []byte) error {
+	var whats json.Number
+	decoder := json.NewDecoder(bytes.NewReader(bts))
+	decoder.UseNumber()
+	if err := decoder.Decode(&whats); err != nil {
+		return err
+	}
+	m.Val = whats
+	return nil
+}
+
+func (m minimum) Validate(dataStruct interface{}) ([]ValidationError, error) {
+	var isLarger bool
+	switch dataStruct.(type) {
+	case int64:
+		isLarger = isLargerThanInt(m.Val, dataStruct.(int64))
+	case float64:
+		isLarger = isLargerThanFloat(m.Val, dataStruct.(float64))
+	}
+	if isLarger {
+		minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", m.Val)}
+		return []ValidationError{minErr}, nil
+	}
 	return []ValidationError{}, nil
-}
-
-func Minimum(value json.RawMessage) func(interface{}) ([]ValidationError, error) {
-	var min json.Number
-	if err := json.Unmarshal(value, &min); err != nil {
-		return nilReturner
-	}
-	return func(dataStruct interface{}) ([]ValidationError, error) {
-		var isLarger bool
-		switch dataStruct.(type) {
-		case int64:
-			isLarger = isLargerThanInt(min, dataStruct.(int64))
-		case float64:
-			isLarger = isLargerThanFloat(min, dataStruct.(float64))
-		}
-		if isLarger {
-			minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", min)}
-			return []ValidationError{minErr}, nil
-		}
-		return []ValidationError{}, nil
-	}
 }
 
 func isLargerThanInt(min json.Number, data int64) bool {
