@@ -24,7 +24,7 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 
 func (s *Schema) Validate(v interface{}) []ValidationError {
 	var valErrs []ValidationError
-	for _, validator := range s.Vals {
+	for _, validator := range s.vals {
 		valErrs = append(valErrs, validator.Validate(v)...)
 	}
 	return valErrs
@@ -41,14 +41,14 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 			if err := json.Unmarshal(schemaValue, newValidator); err != nil {
 				continue
 			}
-			s.Vals = append(s.Vals, newValidator)
+			s.vals = append(s.vals, newValidator)
 		}
 	}
 	return nil
 }
 
 type Schema struct {
-	Vals []Validator
+	vals []Validator
 }
 
 type ValidationError struct {

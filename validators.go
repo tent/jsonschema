@@ -37,17 +37,17 @@ func (m minimum) Validate(unnormalized interface{}) []ValidationError {
 		return []ValidationError{ValidationError{err.Error()}}
 	}
 	var isLarger bool
-	switch v.(type) {
+	switch n := v.(type) {
 	case int64:
-		isLarger = m.isLargerThanInt(v.(int64))
+		isLarger = m.isLargerThanInt(n)
 	case float64:
-		isLarger = m.isLargerThanFloat(v.(float64))
+		isLarger = m.isLargerThanFloat(n)
 	}
 	if isLarger {
 		minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", m)}
 		return []ValidationError{minErr}
 	}
-	return []ValidationError{}
+	return nil
 }
 
 func (m minimum) isLargerThanInt(n int64) bool {

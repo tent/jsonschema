@@ -5,6 +5,9 @@ import (
 	"reflect"
 )
 
+// normalizeNumber accepts any input and, if it is a supported number type,
+// converts it to either int64 or float64. normalizeNumber raises an error
+// if the input is an explicitly unsupported number type.
 func normalizeNumber(v interface{}) (n interface{}, err error) {
 	switch t := v.(type) {
 
