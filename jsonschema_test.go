@@ -50,15 +50,8 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 			for _, tst := range cse.Tests {
 				var data interface{}
 				json.Unmarshal(tst.Data, &data)
-				errorList, err := schema.Validate(data)
-
-				if err != nil {
-					t.Error(errorMessage(err, path, cse, tst))
-					*failures += 1
-					continue
-				}
-
-				err = correctValidation(errorList, path, cse, tst)
+				errorList := schema.Validate(data)
+				err = correctValidation(path, cse, tst, errorList)
 				if err != nil {
 					t.Error(failureMessage(err, path, cse, tst, errorList))
 					*failures += 1
@@ -85,8 +78,8 @@ type testInstance struct {
 	Valid       bool            `json:"valid"`
 }
 
-func correctValidation(errorList []ValidationError, path string, cse testCase, tst testInstance) error {
-	validated := len(errorList) == 0
+func correctValidation(path string, cse testCase, tst testInstance, errorList []ValidationError) error {
+	validated := (len(errorList) == 0)
 	var failureName string
 	if validated && !tst.Valid {
 		failureName = "schema.Validate validated bad data."
@@ -98,17 +91,6 @@ func correctValidation(errorList []ValidationError, path string, cse testCase, t
 		return errors.New(failureName)
 	}
 	return nil
-}
-
-func errorMessage(err error, path string, cse testCase, tst testInstance) string {
-	return fmt.Sprintf(`VALIDATION ERROR: %s
-file: %s
-test case description: %s
-schema: %s
-test instance description: %s
-test data: %s
-
-`, err, path, cse.Description, cse.Schema, tst.Description, tst.Data)
 }
 
 func failureMessage(err error, path string, cse testCase, tst testInstance, errorList []ValidationError) string {

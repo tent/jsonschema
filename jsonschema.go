@@ -11,7 +11,7 @@ var validatorMap = map[string]reflect.Type{
 	"properties": reflect.TypeOf(properties{})}
 
 type Validator interface {
-	Validate(interface{}) ([]ValidationError, error)
+	Validate(interface{}) []ValidationError
 }
 
 func Parse(schemaBytes io.Reader) (*Schema, error) {
@@ -22,16 +22,12 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 	return schema, nil
 }
 
-func (s *Schema) Validate(v interface{}) ([]ValidationError, error) {
+func (s *Schema) Validate(v interface{}) []ValidationError {
 	var valErrs []ValidationError
 	for _, validator := range s.Vals {
-		newErrors, err := validator.Validate(v)
-		if err != nil {
-			return valErrs, err
-		}
-		valErrs = append(valErrs, newErrors...)
+		valErrs = append(valErrs, validator.Validate(v)...)
 	}
-	return valErrs, nil
+	return valErrs
 }
 
 func (s *Schema) UnmarshalJSON(bts []byte) error {
@@ -43,7 +39,7 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 		if typ, ok := validatorMap[schemaKey]; ok {
 			var newValidator = reflect.New(typ).Interface().(Validator)
 			if err := json.Unmarshal(schemaValue, newValidator); err != nil {
-				return err
+				continue
 			}
 			s.Vals = append(s.Vals, newValidator)
 		}

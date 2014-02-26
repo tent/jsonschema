@@ -2,19 +2,18 @@ package jsonschema
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 )
 
 type properties map[string]json.RawMessage
 
-func (p properties) Validate(v interface{}) ([]ValidationError, error) {
+func (p properties) Validate(v interface{}) []ValidationError {
 	var valErrs []ValidationError
 	for schemaKey, schemaValue := range p {
 		dataMap, ok := v.(map[string]interface{})
 		if !ok {
-			return valErrs, errors.New("Properties must be of the type `map[string]interface{}`.")
+			continue
 		}
 		if dataValue, ok := dataMap[schemaKey]; ok {
 			var schema Schema
@@ -22,24 +21,20 @@ func (p properties) Validate(v interface{}) ([]ValidationError, error) {
 			if err != nil {
 				break
 			}
-			newErrors, err := schema.Validate(dataValue)
-			if err != nil {
-				return valErrs, err
-			}
-			valErrs = append(valErrs, newErrors...)
+			valErrs = append(valErrs, schema.Validate(dataValue)...)
 		}
 	}
-	return valErrs, nil
+	return valErrs
 }
 
 type minimum struct {
 	json.Number
 }
 
-func (m minimum) Validate(unnormalized interface{}) ([]ValidationError, error) {
+func (m minimum) Validate(unnormalized interface{}) []ValidationError {
 	v, err := normalizeNumber(unnormalized)
 	if err != nil {
-		return []ValidationError{}, err
+		return []ValidationError{ValidationError{err.Error()}}
 	}
 	var isLarger bool
 	switch v.(type) {
@@ -50,9 +45,9 @@ func (m minimum) Validate(unnormalized interface{}) ([]ValidationError, error) {
 	}
 	if isLarger {
 		minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", m)}
-		return []ValidationError{minErr}, nil
+		return []ValidationError{minErr}
 	}
-	return []ValidationError{}, nil
+	return []ValidationError{}
 }
 
 func (min minimum) isLargerThanInt(data int64) bool {
