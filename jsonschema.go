@@ -1,15 +1,14 @@
 package jsonschema
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"reflect"
 )
 
-var validatorMap = map[string]Validator{
-	"minimum":    minimum{},
-	"properties": properties{}}
+var validatorMap = map[string]reflect.Type{
+	"minimum":    reflect.TypeOf(minimum{}),
+	"properties": reflect.TypeOf(properties{})}
 
 type Validator interface {
 	Validate(interface{}) ([]ValidationError, error)
@@ -23,14 +22,10 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 	return schema, nil
 }
 
-func (s *Schema) Validate(dataStruct interface{}) ([]ValidationError, error) {
-	data, err := normalizeType(dataStruct)
+func (s *Schema) Validate(v interface{}) ([]ValidationError, error) {
 	var valErrs []ValidationError
-	if err != nil {
-		return valErrs, err
-	}
 	for _, validator := range s.Vals {
-		newErrors, err := validator.Validate(data)
+		newErrors, err := validator.Validate(v)
 		if err != nil {
 			return valErrs, err
 		}
@@ -40,17 +35,17 @@ func (s *Schema) Validate(dataStruct interface{}) ([]ValidationError, error) {
 }
 
 func (s *Schema) UnmarshalJSON(bts []byte) error {
-	var schemaMap map[string]json.RawMessage
-	if err := json.NewDecoder(bytes.NewReader(bts)).Decode(&schemaMap); err != nil {
+	schemaMap := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(bts, &schemaMap); err != nil {
 		return err
 	}
 	for schemaKey, schemaValue := range schemaMap {
-		if exampleOfType, ok := validatorMap[schemaKey]; ok {
-			var newVal = reflect.New(reflect.TypeOf(exampleOfType)).Interface()
-			if err := json.Unmarshal(schemaValue, newVal); err != nil {
+		if typ, ok := validatorMap[schemaKey]; ok {
+			var newValidator = reflect.New(typ).Interface().(Validator)
+			if err := json.Unmarshal(schemaValue, newValidator); err != nil {
 				return err
 			}
-			s.Vals = append(s.Vals, newVal.(Validator))
+			s.Vals = append(s.Vals, newValidator)
 		}
 	}
 	return nil

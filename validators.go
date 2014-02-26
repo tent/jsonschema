@@ -1,7 +1,6 @@
 package jsonschema
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,10 +9,10 @@ import (
 
 type properties map[string]json.RawMessage
 
-func (p properties) Validate(dataStruct interface{}) ([]ValidationError, error) {
+func (p properties) Validate(v interface{}) ([]ValidationError, error) {
 	var valErrs []ValidationError
 	for schemaKey, schemaValue := range p {
-		dataMap, ok := dataStruct.(map[string]interface{})
+		dataMap, ok := v.(map[string]interface{})
 		if !ok {
 			return valErrs, errors.New("Properties must be of the type `map[string]interface{}`.")
 		}
@@ -34,36 +33,29 @@ func (p properties) Validate(dataStruct interface{}) ([]ValidationError, error) 
 }
 
 type minimum struct {
-	Val json.Number
+	json.Number
 }
 
-func (m *minimum) UnmarshalJSON(bts []byte) error {
-	var whats json.Number
-	decoder := json.NewDecoder(bytes.NewReader(bts))
-	decoder.UseNumber()
-	if err := decoder.Decode(&whats); err != nil {
-		return err
+func (m minimum) Validate(unnormalized interface{}) ([]ValidationError, error) {
+	v, err := normalizeNumber(unnormalized)
+	if err != nil {
+		return []ValidationError{}, err
 	}
-	m.Val = whats
-	return nil
-}
-
-func (m minimum) Validate(dataStruct interface{}) ([]ValidationError, error) {
 	var isLarger bool
-	switch dataStruct.(type) {
+	switch v.(type) {
 	case int64:
-		isLarger = isLargerThanInt(m.Val, dataStruct.(int64))
+		isLarger = m.isLargerThanInt(v.(int64))
 	case float64:
-		isLarger = isLargerThanFloat(m.Val, dataStruct.(float64))
+		isLarger = m.isLargerThanFloat(v.(float64))
 	}
 	if isLarger {
-		minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", m.Val)}
+		minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", m)}
 		return []ValidationError{minErr}, nil
 	}
 	return []ValidationError{}, nil
 }
 
-func isLargerThanInt(min json.Number, data int64) bool {
+func (min minimum) isLargerThanInt(data int64) bool {
 	if strings.Contains(min.String(), ".") {
 		flt, err := min.Float64()
 		if err != nil {
@@ -84,7 +76,7 @@ func isLargerThanInt(min json.Number, data int64) bool {
 	return false
 }
 
-func isLargerThanFloat(min json.Number, data float64) bool {
+func (min minimum) isLargerThanFloat(data float64) bool {
 	flt, err := min.Float64()
 	if err != nil {
 		return false

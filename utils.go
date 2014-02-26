@@ -5,51 +5,38 @@ import (
 	"reflect"
 )
 
-func normalizeType(dataStruct interface{}) (interface{}, error) {
-	var data interface{}
-	var err error
-	switch dataStruct.(type) {
+func normalizeNumber(v interface{}) (n interface{}, err error) {
+	switch t := v.(type) {
 
 	case float32:
-		data = float64(dataStruct.(float32))
+		n = float64(t)
 	case float64:
-		data = dataStruct
+		n = t
 
 	case int:
-		data = int64(dataStruct.(int))
+		n = int64(t)
 	case int8:
-		data = int64(dataStruct.(int8))
+		n = int64(t)
 	case int16:
-		data = int64(dataStruct.(int16))
+		n = int64(t)
 	case int32:
-		data = int64(dataStruct.(int32))
+		n = int64(t)
 	case int64:
-		data = dataStruct
+		n = t
 
 	case uint8:
-		data = int64(dataStruct.(uint8))
+		n = int64(t)
 	case uint16:
-		data = int64(dataStruct.(uint16))
+		n = int64(t)
 	case uint32:
-		data = int64(dataStruct.(uint32))
-
-	case bool:
-		data = dataStruct
-	case nil:
-		data = dataStruct
-	case string:
-		data = dataStruct
-	case []interface{}:
-		data = dataStruct
-	case map[string]interface{}:
-		data = dataStruct
+		n = int64(t)
+	case uint64:
+		n = t
+		err = fmt.Errorf("%s is not a supported type.", reflect.TypeOf(v))
 
 	default:
-		err = fmt.Errorf("%s is not a supported type.", reflect.TypeOf(dataStruct))
+		n = t
 	}
 
-	if err != nil {
-		return dataStruct, err
-	}
-	return data, nil
+	return
 }
