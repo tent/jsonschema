@@ -50,12 +50,10 @@ func (m minimum) Validate(unnormalized interface{}) []ValidationError {
 	return nil
 }
 
-func (m *minimum) UnmarshalJSON(bts []byte) error {
-	var holder json.Number
-	if err := json.Unmarshal(bts, &holder); err != nil {
+func (m *minimum) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &m.Number); err != nil {
 		return err
 	}
-	*m = minimum{holder}
 	return nil
 }
 
