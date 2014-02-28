@@ -51,10 +51,7 @@ func (m minimum) Validate(unnormalized interface{}) []ValidationError {
 }
 
 func (m *minimum) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &m.Number); err != nil {
-		return err
-	}
-	return nil
+	return json.Unmarshal(b, &m.Number)
 }
 
 func (m minimum) isLargerThanInt(n int64) bool {
