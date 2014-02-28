@@ -50,6 +50,15 @@ func (m minimum) Validate(unnormalized interface{}) []ValidationError {
 	return nil
 }
 
+func (m *minimum) UnmarshalJSON(bts []byte) error {
+	var holder json.Number
+	if err := json.Unmarshal(bts, &holder); err != nil {
+		return err
+	}
+	*m = minimum{holder}
+	return nil
+}
+
 func (m minimum) isLargerThanInt(n int64) bool {
 	if strings.Contains(m.String(), ".") {
 		flt, err := m.Float64()
