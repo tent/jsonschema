@@ -42,10 +42,17 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 			if err := json.Unmarshal(schemaValue, newValidator); err != nil {
 				continue
 			}
+			if v, ok := newValidator.(SchemaSetter); ok {
+				v.SetSchema(schemaMap)
+			}
 			s.vals = append(s.vals, newValidator)
 		}
 	}
 	return nil
+}
+
+type SchemaSetter interface {
+	SetSchema(map[string]json.RawMessage)
 }
 
 type Schema struct {
