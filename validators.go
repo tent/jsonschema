@@ -3,29 +3,10 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 )
-
-type properties map[string]json.RawMessage
-
-func (p properties) Validate(v interface{}) []ValidationError {
-	var valErrs []ValidationError
-	for schemaKey, schemaValue := range p {
-		dataMap, ok := v.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if dataValue, ok := dataMap[schemaKey]; ok {
-			var schema Schema
-			err := json.Unmarshal(schemaValue, &schema)
-			if err != nil {
-				break
-			}
-			valErrs = append(valErrs, schema.Validate(dataValue)...)
-		}
-	}
-	return valErrs
-}
 
 type minimum struct {
 	json.Number
@@ -102,4 +83,94 @@ func (m minimum) isLargerThanFloat(n float64) int {
 		return -1
 	}
 	return 0
+}
+
+type maxLength struct {
+	int64
+}
+
+func (m maxLength) Validate(v interface{}) []ValidationError {
+	l, ok := v.(string)
+	if !ok {
+		return nil
+	}
+	if int64(utf8.RuneCountInString(l)) > m.int64 {
+		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m.int64)}
+		return []ValidationError{lenErr}
+	}
+	return nil
+}
+
+func (m *maxLength) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &m.int64)
+}
+
+type minLength struct {
+	int64
+}
+
+func (m minLength) Validate(v interface{}) []ValidationError {
+	l, ok := v.(string)
+	if !ok {
+		return nil
+	}
+	if int64(utf8.RuneCountInString(l)) < m.int64 {
+		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m.int64)}
+		return []ValidationError{lenErr}
+	}
+	return nil
+}
+
+func (m *minLength) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &m.int64)
+}
+
+type pattern struct {
+	regexp.Regexp
+}
+
+func (p pattern) Validate(v interface{}) []ValidationError {
+	s, ok := v.(string)
+	if !ok {
+		return nil
+	}
+	if !p.MatchString(s) {
+		patErr := ValidationError{fmt.Sprintf("String must match the pattern: \"%s\".", p.String())}
+		return []ValidationError{patErr}
+	}
+	return nil
+}
+
+func (p *pattern) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	r, err := regexp.Compile(s)
+	if err != nil {
+		return err
+	}
+	p.Regexp = *r
+	return nil
+}
+
+type properties map[string]json.RawMessage
+
+func (p properties) Validate(v interface{}) []ValidationError {
+	var valErrs []ValidationError
+	for schemaKey, schemaValue := range p {
+		dataMap, ok := v.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if dataValue, ok := dataMap[schemaKey]; ok {
+			var schema Schema
+			err := json.Unmarshal(schemaValue, &schema)
+			if err != nil {
+				break
+			}
+			valErrs = append(valErrs, schema.Validate(dataValue)...)
+		}
+	}
+	return valErrs
 }
