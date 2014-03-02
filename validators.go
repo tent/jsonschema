@@ -85,14 +85,14 @@ func (m minimum) isLargerThanFloat(n float64) int {
 	return 0
 }
 
-type maxLength int64
+type maxLength int
 
 func (m maxLength) Validate(v interface{}) []ValidationError {
 	l, ok := v.(string)
 	if !ok {
 		return nil
 	}
-	if int64(utf8.RuneCountInString(l)) > int64(m) {
+	if utf8.RuneCountInString(l) > int(m) {
 		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m)}
 		return []ValidationError{lenErr}
 	}
@@ -100,7 +100,7 @@ func (m maxLength) Validate(v interface{}) []ValidationError {
 }
 
 func (m *maxLength) UnmarshalJSON(b []byte) error {
-	var n int64
+	var n int
 	if err := json.Unmarshal(b, &n); err != nil {
 		return err
 	}
@@ -108,14 +108,14 @@ func (m *maxLength) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type minLength int64
+type minLength int
 
 func (m minLength) Validate(v interface{}) []ValidationError {
 	l, ok := v.(string)
 	if !ok {
 		return nil
 	}
-	if int64(utf8.RuneCountInString(l)) < int64(m) {
+	if utf8.RuneCountInString(l) < int(m) {
 		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m)}
 		return []ValidationError{lenErr}
 	}
@@ -123,7 +123,7 @@ func (m minLength) Validate(v interface{}) []ValidationError {
 }
 
 func (m *minLength) UnmarshalJSON(b []byte) error {
-	var n int64
+	var n int
 	if err := json.Unmarshal(b, &n); err != nil {
 		return err
 	}
