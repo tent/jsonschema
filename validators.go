@@ -85,44 +85,50 @@ func (m minimum) isLargerThanFloat(n float64) int {
 	return 0
 }
 
-type maxLength struct {
-	int64
-}
+type maxLength int64
 
 func (m maxLength) Validate(v interface{}) []ValidationError {
 	l, ok := v.(string)
 	if !ok {
 		return nil
 	}
-	if int64(utf8.RuneCountInString(l)) > m.int64 {
-		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m.int64)}
+	if int64(utf8.RuneCountInString(l)) > int64(m) {
+		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m)}
 		return []ValidationError{lenErr}
 	}
 	return nil
 }
 
 func (m *maxLength) UnmarshalJSON(b []byte) error {
-	return json.Unmarshal(b, &m.int64)
+	var n int64
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	*m = maxLength(n)
+	return nil
 }
 
-type minLength struct {
-	int64
-}
+type minLength int64
 
 func (m minLength) Validate(v interface{}) []ValidationError {
 	l, ok := v.(string)
 	if !ok {
 		return nil
 	}
-	if int64(utf8.RuneCountInString(l)) < m.int64 {
-		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m.int64)}
+	if int64(utf8.RuneCountInString(l)) < int64(m) {
+		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m)}
 		return []ValidationError{lenErr}
 	}
 	return nil
 }
 
 func (m *minLength) UnmarshalJSON(b []byte) error {
-	return json.Unmarshal(b, &m.int64)
+	var n int64
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	*m = minLength(n)
+	return nil
 }
 
 type pattern struct {
