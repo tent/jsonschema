@@ -7,7 +7,15 @@ import (
 )
 
 var validatorMap = map[string]reflect.Type{
-	"minimum":    reflect.TypeOf(minimum{}),
+	// Numbers
+	"minimum": reflect.TypeOf(minimum{}),
+
+	// Strings
+	"maxLength": reflect.TypeOf(maxLength(0)),
+	"minLength": reflect.TypeOf(minLength(0)),
+	"pattern":   reflect.TypeOf(pattern{}),
+
+	// Objects
 	"properties": reflect.TypeOf(properties{})}
 
 type Validator interface {
