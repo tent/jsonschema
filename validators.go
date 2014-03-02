@@ -3,41 +3,128 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"unicode/utf8"
 )
+
+type maximum struct {
+	json.Number
+	exclusive bool
+}
+
+func (m maximum) Validate(v interface{}) []ValidationError {
+	normalized, err := normalizeNumber(v)
+	if err != nil {
+		return []ValidationError{ValidationError{err.Error()}}
+	}
+	var isLarger bool
+	switch n := normalized.(type) {
+	case int64:
+		isLarger, err = m.isLargerThanInt(n)
+	case float64:
+		isLarger, err = m.isLargerThanFloat(n)
+	default:
+		return nil
+	}
+	if err != nil {
+		return nil
+	}
+	if !isLarger {
+		maxErr := fmt.Sprintf("Value must be smaller than %s.", m)
+		return []ValidationError{ValidationError{maxErr}}
+	}
+	return nil
+}
+
+func (m maximum) isLargerThanInt(n int64) (bool, error) {
+	if !strings.Contains(m.String(), ".") {
+		max, err := m.Int64()
+		if err != nil {
+			return false, err
+		}
+		return max > n || !m.exclusive && max == n, nil
+	} else {
+		return m.isLargerThanFloat(float64(n))
+	}
+}
+
+func (m maximum) isLargerThanFloat(n float64) (isLarger bool, err error) {
+	max, err := m.Float64()
+	if err != nil {
+		return
+	}
+	return max > n || !m.exclusive && max == n, nil
+}
+
+func (m *maximum) SetSchema(v map[string]json.RawMessage) {
+	value, ok := v["exclusiveMaximum"]
+	if ok {
+		// Ignore errors from Unmarshal. If exclusiveMaximum is a non boolean JSON
+		// value we leave it as false.
+		json.Unmarshal(value, &m.exclusive)
+	}
+	return
+}
+
+func (m *maximum) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &m.Number)
+}
 
 type minimum struct {
 	json.Number
 	exclusive bool
 }
 
-func (m minimum) Validate(unnormalized interface{}) []ValidationError {
-	v, err := normalizeNumber(unnormalized)
+func (m minimum) Validate(v interface{}) []ValidationError {
+	normalized, err := normalizeNumber(v)
 	if err != nil {
 		return []ValidationError{ValidationError{err.Error()}}
 	}
-	var isLarger int
-	switch n := v.(type) {
+	var isLarger bool
+	switch n := normalized.(type) {
 	case int64:
-		isLarger = m.isLargerThanInt(n)
+		isLarger, err = m.isLargerThanInt(n)
 	case float64:
-		isLarger = m.isLargerThanFloat(n)
+		isLarger, err = m.isLargerThanFloat(n)
 	default:
 		return nil
 	}
-	if isLarger > 0 || (m.exclusive && isLarger == 0) {
-		minErr := ValidationError{fmt.Sprintf("Value must be larger than %s.", m)}
-		return []ValidationError{minErr}
+	if err != nil {
+		return nil
+	}
+	if isLarger {
+		minErr := fmt.Sprintf("Value must be smaller than %s.", m)
+		return []ValidationError{ValidationError{minErr}}
 	}
 	return nil
 }
 
+func (m minimum) isLargerThanInt(n int64) (bool, error) {
+	if !strings.Contains(m.String(), ".") {
+		min, err := m.Int64()
+		if err != nil {
+			return false, nil
+		}
+		return min > n || !m.exclusive && min == n, nil
+	} else {
+		return m.isLargerThanFloat(float64(n))
+	}
+}
+
+func (m minimum) isLargerThanFloat(n float64) (isLarger bool, err error) {
+	min, err := m.Float64()
+	if err != nil {
+		return
+	}
+	return min > n || !m.exclusive && min == n, nil
+}
+
 func (m *minimum) SetSchema(v map[string]json.RawMessage) {
-	value, ok := v["exclusiveMinimum"]
+	value, ok := v["exclusiveminimum"]
 	if ok {
-		// Ignore errors from Unmarshal. If exclusiveMinimum is a non boolean JSON
+		// Ignore errors from Unmarshal. If exclusiveminimum is a non boolean JSON
 		// value we leave it as false.
 		json.Unmarshal(value, &m.exclusive)
 	}
@@ -48,42 +135,59 @@ func (m *minimum) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &m.Number)
 }
 
-func (m minimum) isLargerThanInt(n int64) int {
-	if !strings.Contains(m.String(), ".") {
-		intg, err := m.Int64()
-		if err != nil {
-			return 0
-		}
-		if intg > n {
-			return 1
-		} else if intg < n {
-			return -1
-		}
-	} else {
-		flt, err := m.Float64()
-		if err != nil {
-			return 0
-		}
-		if flt > float64(n) {
-			return 1
-		} else if flt < float64(n) {
-			return -1
-		}
+type multipleOf json.Number
+
+func (m multipleOf) Validate(v interface{}) []ValidationError {
+	normalized, err := normalizeNumber(v)
+	if err != nil {
+		return []ValidationError{ValidationError{err.Error()}}
 	}
-	return 0
+	var isMul bool
+	switch n := normalized.(type) {
+	case int64:
+		isMul, err = m.isFactorOfInt(n)
+	case float64:
+		isMul, err = m.isFactorOfFloat(n)
+	default:
+		return nil
+	}
+	if err != nil {
+		return nil
+	}
+	if !isMul {
+		mulErr := ValidationError{fmt.Sprintf("Value must be a multiple of %s.", json.Number(m).String())}
+		return []ValidationError{mulErr}
+	}
+	return nil
 }
 
-func (m minimum) isLargerThanFloat(n float64) int {
-	flt, err := m.Float64()
+func (m multipleOf) isFactorOfInt(n int64) (bool, error) {
+	if !strings.Contains(json.Number(m).String(), ".") {
+		mul, err := json.Number(m).Int64()
+		if err != nil {
+			return false, err
+		}
+		return n%mul == 0, nil
+	} else {
+		return m.isFactorOfFloat(float64(n))
+	}
+}
+
+func (m multipleOf) isFactorOfFloat(n float64) (bool, error) {
+	mul, err := json.Number(m).Float64()
 	if err != nil {
-		return 0
+		return false, err
 	}
-	if flt > n {
-		return 1
-	} else if flt < n {
-		return -1
+	return math.Mod(n, mul) == 0, nil
+}
+
+func (m *multipleOf) UnmarshalJSON(b []byte) error {
+	var n json.Number
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
 	}
-	return 0
+	*m = multipleOf(n)
+	return nil
 }
 
 type maxLength int

@@ -8,7 +8,9 @@ import (
 
 var validatorMap = map[string]reflect.Type{
 	// Numbers
-	"minimum": reflect.TypeOf(minimum{}),
+	"maximum":    reflect.TypeOf(maximum{}),
+	"minimum":    reflect.TypeOf(minimum{}),
+	"multipleOf": reflect.TypeOf(multipleOf(0)),
 
 	// Strings
 	"maxLength": reflect.TypeOf(maxLength(0)),
