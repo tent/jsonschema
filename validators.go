@@ -161,6 +161,52 @@ func (p *pattern) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type maxItems int
+
+func (m maxItems) Validate(v interface{}) []ValidationError {
+	l, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	if len(l) > int(m) {
+		maxErr := ValidationError{fmt.Sprintf("Array must have fewer than %d items.", m)}
+		return []ValidationError{maxErr}
+	}
+	return nil
+}
+
+func (m *maxItems) UnmarshalJSON(b []byte) error {
+	var n int
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	*m = maxItems(n)
+	return nil
+}
+
+type minItems int
+
+func (m minItems) Validate(v interface{}) []ValidationError {
+	l, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	if len(l) < int(m) {
+		minErr := ValidationError{fmt.Sprintf("Array must have more than %d items.", m)}
+		return []ValidationError{minErr}
+	}
+	return nil
+}
+
+func (m *minItems) UnmarshalJSON(b []byte) error {
+	var n int
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	*m = minItems(n)
+	return nil
+}
+
 // The spec[0] is useless for this keyword. The implemention here is based on the tests and this[1] guide.
 //
 // [0] http://json-schema.org/latest/json-schema-validation.html#anchor37
