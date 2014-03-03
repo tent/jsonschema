@@ -100,15 +100,6 @@ func (m maxLength) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
-func (m *maxLength) UnmarshalJSON(b []byte) error {
-	var n int
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	*m = maxLength(n)
-	return nil
-}
-
 type minLength int
 
 func (m minLength) Validate(v interface{}) []ValidationError {
@@ -120,15 +111,6 @@ func (m minLength) Validate(v interface{}) []ValidationError {
 		lenErr := ValidationError{fmt.Sprintf("String length must be shorter than %d characters.", m)}
 		return []ValidationError{lenErr}
 	}
-	return nil
-}
-
-func (m *minLength) UnmarshalJSON(b []byte) error {
-	var n int
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	*m = minLength(n)
 	return nil
 }
 
@@ -175,15 +157,6 @@ func (m maxItems) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
-func (m *maxItems) UnmarshalJSON(b []byte) error {
-	var n int
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	*m = maxItems(n)
-	return nil
-}
-
 type minItems int
 
 func (m minItems) Validate(v interface{}) []ValidationError {
@@ -195,15 +168,6 @@ func (m minItems) Validate(v interface{}) []ValidationError {
 		minErr := ValidationError{fmt.Sprintf("Array must have more than %d items.", m)}
 		return []ValidationError{minErr}
 	}
-	return nil
-}
-
-func (m *minItems) UnmarshalJSON(b []byte) error {
-	var n int
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	*m = minItems(n)
 	return nil
 }
 
@@ -237,7 +201,7 @@ func (i items) Validate(v interface{}) []ValidationError {
 				if i.additionalItems == nil {
 					continue
 				}
-				valErrs = append(valErrs, (*i.additionalItems).Validate(value)...)
+				valErrs = append(valErrs, i.additionalItems.Validate(value)...)
 			} else if !i.additionalAllowed {
 				return []ValidationError{ValidationError{"Additional items aren't allowed."}}
 			}
