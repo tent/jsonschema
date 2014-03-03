@@ -177,7 +177,7 @@ func (m minItems) Validate(v interface{}) []ValidationError {
 // [1] http://spacetelescope.github.io/understanding-json-schema/reference/array.html
 type items struct {
 	schema            *Schema
-	schemaSlice       *[]Schema
+	schemaSlice       []Schema
 	additionalAllowed bool
 	additionalItems   *Schema
 }
@@ -194,8 +194,8 @@ func (i items) Validate(v interface{}) []ValidationError {
 		}
 	} else if i.schemaSlice != nil {
 		for pos, value := range instances {
-			if pos <= len(*i.schemaSlice)-1 {
-				schema := (*i.schemaSlice)[pos]
+			if pos <= len(i.schemaSlice)-1 {
+				schema := i.schemaSlice[pos]
 				valErrs = append(valErrs, schema.Validate(value)...)
 			} else if i.additionalAllowed {
 				if i.additionalItems == nil {
