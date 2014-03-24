@@ -1,8 +1,10 @@
 package jsonschema
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 // normalizeNumber accepts any input and, if it is a supported number type,
@@ -10,6 +12,13 @@ import (
 // if the input is an explicitly unsupported number type.
 func normalizeNumber(v interface{}) (n interface{}, err error) {
 	switch t := v.(type) {
+
+	case json.Number:
+		if strings.Contains(t.String(), ".") {
+			n, err = t.Float64()
+		} else {
+			n, err = t.Int64()
+		}
 
 	case float32:
 		n = float64(t)

@@ -49,7 +49,9 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 			}
 			for _, tst := range cse.Tests {
 				var data interface{}
-				json.Unmarshal(tst.Data, &data)
+				decoder := json.NewDecoder(bytes.NewReader(tst.Data))
+				decoder.UseNumber()
+				decoder.Decode(&data)
 				errorList := schema.Validate(data)
 				err = correctValidation(path, cse, tst, errorList)
 				if err != nil {
