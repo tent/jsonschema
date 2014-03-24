@@ -3,7 +3,6 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -135,54 +134,29 @@ func (m *minimum) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &m.Number)
 }
 
-type multipleOf json.Number
+type multipleOf int64
 
+// Contrary to the spec, validation doesn't support floats in the schema
+// or the data being validated. This is because of issues with math.Mod,
+// e.g. math.Mod(0.0075, 0.0001) != 0.
 func (m multipleOf) Validate(v interface{}) []ValidationError {
 	normalized, err := normalizeNumber(v)
 	if err != nil {
 		return []ValidationError{ValidationError{err.Error()}}
 	}
-	var isMul bool
-	switch n := normalized.(type) {
-	case int64:
-		isMul, err = m.isFactorOfInt(n)
-	case float64:
-		isMul, err = m.isFactorOfFloat(n)
-	default:
+	n, ok := normalized.(int64)
+	if !ok {
 		return nil
 	}
-	if err != nil {
-		return nil
-	}
-	if !isMul {
-		mulErr := ValidationError{fmt.Sprintf("Value must be a multiple of %s.", json.Number(m).String())}
+	if n%int64(m) != 0 {
+		mulErr := ValidationError{fmt.Sprintf("Value must be a multiple of %d.", m)}
 		return []ValidationError{mulErr}
 	}
 	return nil
 }
 
-func (m multipleOf) isFactorOfInt(n int64) (bool, error) {
-	if !strings.Contains(json.Number(m).String(), ".") {
-		mul, err := json.Number(m).Int64()
-		if err != nil {
-			return false, err
-		}
-		return n%mul == 0, nil
-	} else {
-		return m.isFactorOfFloat(float64(n))
-	}
-}
-
-func (m multipleOf) isFactorOfFloat(n float64) (bool, error) {
-	mul, err := json.Number(m).Float64()
-	if err != nil {
-		return false, err
-	}
-	return math.Mod(n, mul) == 0, nil
-}
-
 func (m *multipleOf) UnmarshalJSON(b []byte) error {
-	var n json.Number
+	var n int64
 	if err := json.Unmarshal(b, &n); err != nil {
 		return err
 	}
