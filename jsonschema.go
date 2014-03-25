@@ -26,9 +26,9 @@ var validatorMap = map[string]reflect.Type{
 	"properties": reflect.TypeOf(properties{}),
 
 	// All types
-	"allOf": reflect.TypeOf(allOf([]Schema{})),
-	"anyOf": reflect.TypeOf(anyOf([]Schema{})),
-	"type":  reflect.TypeOf(make(typeValidator))}
+	"allOf": reflect.TypeOf(allOf{}),
+	"anyOf": reflect.TypeOf(anyOf{}),
+	"type":  reflect.TypeOf(typeValidator{})}
 
 type Validator interface {
 	Validate(interface{}) []ValidationError

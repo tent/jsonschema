@@ -398,14 +398,17 @@ func (t typeValidator) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
-func (t *typeValidator) UnmarshalJSON(b []byte) (err error) {
+func (t *typeValidator) UnmarshalJSON(b []byte) error {
 	*t = make(typeValidator)
 	var s string
 	var l []string
 
 	// The value of the "type" keyword can be a string or an array.
-	if err = json.Unmarshal(b, &s); err != nil {
+	if err := json.Unmarshal(b, &s); err != nil {
 		err = json.Unmarshal(b, &l)
+		if err != nil {
+			return err
+		}
 	} else {
 		l = []string{s}
 	}
@@ -413,5 +416,5 @@ func (t *typeValidator) UnmarshalJSON(b []byte) (err error) {
 	for _, val := range l {
 		(*t)[val] = true
 	}
-	return
+	return nil
 }
