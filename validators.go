@@ -352,6 +352,25 @@ func (a anyOf) Validate(v interface{}) []ValidationError {
 		ValidationError{"Validation failed for each schema in 'anyOf'."}}
 }
 
+type not Schema
+
+func (n not) Validate(v interface{}) []ValidationError {
+	schema := Schema{n.vals}
+	if schema.Validate(v) == nil {
+		return []ValidationError{ValidationError{"The 'not' schema didn't raise an error."}}
+	}
+	return nil
+}
+
+func (n *not) UnmarshalJSON(b []byte) error {
+	var s Schema
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	*n = not(s)
+	return nil
+}
+
 type oneOf []Schema
 
 func (a oneOf) Validate(v interface{}) []ValidationError {

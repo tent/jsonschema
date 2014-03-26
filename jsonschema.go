@@ -28,6 +28,7 @@ var validatorMap = map[string]reflect.Type{
 	// All types
 	"allOf": reflect.TypeOf(allOf{}),
 	"anyOf": reflect.TypeOf(anyOf{}),
+	"not":   reflect.TypeOf(not{}),
 	"oneOf": reflect.TypeOf(oneOf{}),
 	"type":  reflect.TypeOf(typeValidator{})}
 
