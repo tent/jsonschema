@@ -352,6 +352,22 @@ func (a anyOf) Validate(v interface{}) []ValidationError {
 		ValidationError{"Validation failed for each schema in 'anyOf'."}}
 }
 
+type oneOf []Schema
+
+func (a oneOf) Validate(v interface{}) []ValidationError {
+	var succeeded int
+	for _, schema := range a {
+		if schema.Validate(v) == nil {
+			succeeded += 1
+		}
+	}
+	if succeeded != 1 {
+		return []ValidationError{ValidationError{
+			fmt.Sprintf("Validation passed for %d schemas in 'oneOf'.", succeeded)}}
+	}
+	return nil
+}
+
 type typeValidator map[string]bool
 
 func (t typeValidator) Validate(v interface{}) []ValidationError {
