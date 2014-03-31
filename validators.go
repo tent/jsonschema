@@ -352,6 +352,18 @@ func (a anyOf) Validate(v interface{}) []ValidationError {
 		ValidationError{"Validation failed for each schema in 'anyOf'."}}
 }
 
+type enum []interface{}
+
+func (a enum) Validate(v interface{}) []ValidationError {
+	for _, b := range a {
+		if isEqual(v, b) {
+			return nil
+		}
+	}
+	return []ValidationError{
+		ValidationError{"enum failed."}}
+}
+
 type not Schema
 
 func (n not) Validate(v interface{}) []ValidationError {

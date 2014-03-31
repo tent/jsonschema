@@ -52,3 +52,76 @@ func normalizeNumber(v interface{}) (n interface{}, err error) {
 
 	return
 }
+
+// Compare a data instance to a schema instance.
+//
+// Schema instances are always json.Number, never int64 or float64
+// so we don't have to deal with the latter two types.
+func isEqual(v, a interface{}) bool {
+	switch b := a.(type) {
+	case string:
+		val, ok := v.(string)
+		if ok {
+			return string(val) == b
+		}
+	case bool:
+		val, ok := v.(bool)
+		if ok {
+			return bool(val) == b
+		}
+	case nil:
+		return v == nil
+	case []interface{}:
+		val, ok := v.([]interface{})
+		if ok {
+			if len(val) == len(b) {
+				for key := range b {
+					if !isEqual(val[key], b[key]) {
+						return false
+					}
+				}
+				return true
+			}
+		}
+	case map[string]interface{}:
+		val, ok := v.(map[string]interface{})
+		if ok {
+			if len(val) == len(b) {
+				for key := range b {
+					if !isEqual(val[key], b[key]) {
+						return false
+					}
+				}
+				return true
+			}
+		}
+	// The reason this entire function can't be replaced by reflect.DeepEqual
+	// is that DeepEqual doesn't know to compare json.Number to int64/float64.
+	//
+	// This wouldn't be a problem if json.Number could only occur at the top level
+	// of the schema data because we could check for it before calling DeepEqual,
+	// but json.Number can also be embedded in a slice or a map.
+	case json.Number:
+		z, err := normalizeNumber(v)
+		if err != nil {
+			return false
+		}
+		i, ok := z.(int64)
+		if ok {
+			c, err := b.Int64()
+			if err != nil {
+				return false
+			}
+			return i == c
+		}
+		f, ok := z.(float64)
+		if ok {
+			c, err := b.Float64()
+			if err != nil {
+				return false
+			}
+			return f == c
+		}
+	}
+	return false
+}

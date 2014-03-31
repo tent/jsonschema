@@ -1,6 +1,7 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"reflect"
@@ -28,6 +29,7 @@ var validatorMap = map[string]reflect.Type{
 	// All types
 	"allOf": reflect.TypeOf(allOf{}),
 	"anyOf": reflect.TypeOf(anyOf{}),
+	"enum":  reflect.TypeOf(enum{}),
 	"not":   reflect.TypeOf(not{}),
 	"oneOf": reflect.TypeOf(oneOf{}),
 	"type":  reflect.TypeOf(typeValidator{})}
@@ -61,7 +63,9 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 	for schemaKey, schemaValue := range schemaMap {
 		if typ, ok := validatorMap[schemaKey]; ok {
 			var newValidator = reflect.New(typ).Interface().(Validator)
-			if err := json.Unmarshal(schemaValue, newValidator); err != nil {
+			decoder := json.NewDecoder(bytes.NewReader(schemaValue))
+			decoder.UseNumber()
+			if err := decoder.Decode(newValidator); err != nil {
 				continue
 			}
 			if v, ok := newValidator.(SchemaSetter); ok {
