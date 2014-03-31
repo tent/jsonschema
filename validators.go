@@ -361,7 +361,7 @@ func (a enum) Validate(v interface{}) []ValidationError {
 		}
 	}
 	return []ValidationError{
-		ValidationError{"enum failed."}}
+		ValidationError{fmt.Sprintf("Enum error. The data must be equal to one of these values %v.", a)}}
 }
 
 type not Schema
