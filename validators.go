@@ -364,22 +364,15 @@ func (a enum) Validate(v interface{}) []ValidationError {
 		ValidationError{fmt.Sprintf("Enum error. The data must be equal to one of these values %v.", a)}}
 }
 
-type not Schema
+type not struct {
+	Schema
+}
 
 func (n not) Validate(v interface{}) []ValidationError {
 	schema := Schema{n.vals}
 	if schema.Validate(v) == nil {
 		return []ValidationError{ValidationError{"The 'not' schema didn't raise an error."}}
 	}
-	return nil
-}
-
-func (n *not) UnmarshalJSON(b []byte) error {
-	var s Schema
-	if err := json.Unmarshal(b, &s); err != nil {
-		return err
-	}
-	*n = not(s)
 	return nil
 }
 
