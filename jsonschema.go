@@ -19,9 +19,10 @@ var validatorMap = map[string]reflect.Type{
 	"pattern":   reflect.TypeOf(pattern{}),
 
 	// Arrays
-	"maxItems": reflect.TypeOf(maxItems(0)),
-	"minItems": reflect.TypeOf(minItems(0)),
-	"items":    reflect.TypeOf(items{}),
+	"maxItems":    reflect.TypeOf(maxItems(0)),
+	"minItems":    reflect.TypeOf(minItems(0)),
+	"items":       reflect.TypeOf(items{}),
+	"uniqueItems": reflect.TypeOf(uniqueItems(false)),
 
 	// Objects
 	"properties": reflect.TypeOf(properties{}),

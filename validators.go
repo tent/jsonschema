@@ -310,6 +310,24 @@ func (i *items) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type uniqueItems bool
+
+func (u uniqueItems) Validate(v interface{}) []ValidationError {
+	s, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	for k1, _ := range s {
+		for k2, _ := range s {
+			if k1 != k2 && isEqual(s[k1], s[k2]) {
+				return []ValidationError{ValidationError{
+					fmt.Sprintf("uniqueItems error: %v is not unique.", s[k1])}}
+			}
+		}
+	}
+	return nil
+}
+
 type properties map[string]json.RawMessage
 
 func (p properties) Validate(v interface{}) []ValidationError {
