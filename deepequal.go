@@ -4,7 +4,12 @@
 
 // Deep equality test via reflection
 
-package reflect
+package jsonschema
+
+import (
+	"encoding/json"
+	"reflect"
+)
 
 // During deepValueEqual, must keep track of checks that are
 // in progress.  The comparison algorithm assumes that all
@@ -13,24 +18,68 @@ package reflect
 type visit struct {
 	a1  uintptr
 	a2  uintptr
-	typ Type
+	typ reflect.Type
 }
 
 // Tests for deep equality using reflected types. The map argument tracks
 // comparisons that have already been seen, which allows short circuiting on
 // recursive types.
-func deepValueEqual(v1, v2 Value, visited map[visit]bool, depth int) bool {
+func deepValueEqual(v1, v2 reflect.Value, visited map[visit]bool, depth int) bool {
 	if !v1.IsValid() || !v2.IsValid() {
 		return v1.IsValid() == v2.IsValid()
 	}
+
+	// BEGIN NEW FOR JSONSCHEMA
+	//
+	// Go's deepValueEqual uses this line at the end of the v1.Kind() switch below to compare simple types:
+	//
+	//     return valueInterface(v1, false) == valueInterface(v2, false)
+	//
+	// this isn't an option for us because valueInterface isn't exported. We need to implement our own
+	// comparison anyway because we want to make some type conversions (e.g. from json.Number to int64)
+	// before testing for equality.
+	//
+	// So instead we handle simple types with our own type switch here before the v1.Kind() switch is run.
+	//
+	//
+	// NOTE: We use v1.Interface().(type) here instead of v1.Kind() like below, because reflect.Kind doesn't
+	// distinguish between json.Number and string.
+	b1 := v1.Interface()
+	switch b2 := v2.Interface().(type) {
+	case string:
+		val, ok := b1.(string)
+		if ok {
+			return string(val) == b2
+		}
+	case bool:
+		val, ok := b1.(bool)
+		if ok {
+			return bool(val) == b2
+		}
+	case json.Number:
+		norm, err := normalizeNumber(b1)
+		if err != nil {
+			return false
+		}
+		intg, ok := norm.(int64)
+		if ok {
+			c, err := b2.Int64()
+			if err != nil {
+				return false
+			}
+			return intg == c
+		}
+	}
+	// END NEW FOR JSONSCHEMA
+
 	if v1.Type() != v2.Type() {
 		return false
 	}
 
 	// if depth > 10 { panic("deepValueEqual") }	// for debugging
-	hard := func(k Kind) bool {
+	hard := func(k reflect.Kind) bool {
 		switch k {
-		case Array, Map, Slice, Struct:
+		case reflect.Array, reflect.Map, reflect.Slice, reflect.Struct:
 			return true
 		}
 		return false
@@ -61,7 +110,7 @@ func deepValueEqual(v1, v2 Value, visited map[visit]bool, depth int) bool {
 	}
 
 	switch v1.Kind() {
-	case Array:
+	case reflect.Array:
 		if v1.Len() != v2.Len() {
 			return false
 		}
@@ -71,7 +120,7 @@ func deepValueEqual(v1, v2 Value, visited map[visit]bool, depth int) bool {
 			}
 		}
 		return true
-	case Slice:
+	case reflect.Slice:
 		if v1.IsNil() != v2.IsNil() {
 			return false
 		}
@@ -87,21 +136,21 @@ func deepValueEqual(v1, v2 Value, visited map[visit]bool, depth int) bool {
 			}
 		}
 		return true
-	case Interface:
+	case reflect.Interface:
 		if v1.IsNil() || v2.IsNil() {
 			return v1.IsNil() == v2.IsNil()
 		}
 		return deepValueEqual(v1.Elem(), v2.Elem(), visited, depth+1)
-	case Ptr:
+	case reflect.Ptr:
 		return deepValueEqual(v1.Elem(), v2.Elem(), visited, depth+1)
-	case Struct:
+	case reflect.Struct:
 		for i, n := 0, v1.NumField(); i < n; i++ {
 			if !deepValueEqual(v1.Field(i), v2.Field(i), visited, depth+1) {
 				return false
 			}
 		}
 		return true
-	case Map:
+	case reflect.Map:
 		if v1.IsNil() != v2.IsNil() {
 			return false
 		}
@@ -117,15 +166,21 @@ func deepValueEqual(v1, v2 Value, visited map[visit]bool, depth int) bool {
 			}
 		}
 		return true
-	case Func:
+	case reflect.Func:
 		if v1.IsNil() && v2.IsNil() {
 			return true
 		}
 		// Can't do better than this:
 		return false
 	default:
-		// Normal equality suffices
-		return valueInterface(v1, false) == valueInterface(v2, false)
+
+		// REMOVED FOR JSONSCHEMA
+		//
+		// // Normal equality suffices
+		// return valueInterface(v1, false) == valueInterface(v2, false)
+
+		// ADDED FOR JSONSCHEMA
+		return false
 	}
 }
 
@@ -139,10 +194,14 @@ func DeepEqual(a1, a2 interface{}) bool {
 	if a1 == nil || a2 == nil {
 		return a1 == a2
 	}
-	v1 := ValueOf(a1)
-	v2 := ValueOf(a2)
-	if v1.Type() != v2.Type() {
-		return false
-	}
+	v1 := reflect.ValueOf(a1)
+	v2 := reflect.ValueOf(a2)
+
+	// REMOVED FOR JSONSCHEMA
+	//
+	// if v1.Type() != v2.Type() {
+	// 	return false
+	// }
+
 	return deepValueEqual(v1, v2, make(map[visit]bool), 0)
 }

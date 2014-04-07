@@ -356,7 +356,7 @@ type enum []interface{}
 
 func (a enum) Validate(v interface{}) []ValidationError {
 	for _, b := range a {
-		if isEqual(v, b) {
+		if DeepEqual(v, b) {
 			return nil
 		}
 	}
