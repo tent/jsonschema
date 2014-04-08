@@ -352,6 +352,46 @@ func (a anyOf) Validate(v interface{}) []ValidationError {
 		ValidationError{"Validation failed for each schema in 'anyOf'."}}
 }
 
+type enum []interface{}
+
+func (a enum) Validate(v interface{}) []ValidationError {
+	for _, b := range a {
+		if DeepEqual(v, b) {
+			return nil
+		}
+	}
+	return []ValidationError{
+		ValidationError{fmt.Sprintf("Enum error. The data must be equal to one of these values %v.", a)}}
+}
+
+type not struct {
+	Schema
+}
+
+func (n not) Validate(v interface{}) []ValidationError {
+	schema := Schema{n.vals}
+	if schema.Validate(v) == nil {
+		return []ValidationError{ValidationError{"The 'not' schema didn't raise an error."}}
+	}
+	return nil
+}
+
+type oneOf []Schema
+
+func (a oneOf) Validate(v interface{}) []ValidationError {
+	var succeeded int
+	for _, schema := range a {
+		if schema.Validate(v) == nil {
+			succeeded += 1
+		}
+	}
+	if succeeded != 1 {
+		return []ValidationError{ValidationError{
+			fmt.Sprintf("Validation passed for %d schemas in 'oneOf'.", succeeded)}}
+	}
+	return nil
+}
+
 type typeValidator map[string]bool
 
 func (t typeValidator) Validate(v interface{}) []ValidationError {
