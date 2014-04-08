@@ -9,7 +9,13 @@ package jsonschema
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 )
+
+// NEW FOR JSONSCHEMA
+var stringType = reflect.TypeOf("")
+var boolType = reflect.TypeOf(false)
+var jsonNumberType = reflect.TypeOf(json.Number(""))
 
 // During deepValueEqual, must keep track of checks that are
 // in progress.  The comparison algorithm assumes that all
@@ -42,32 +48,63 @@ func deepValueEqual(v1, v2 reflect.Value, visited map[visit]bool, depth int) boo
 	// So instead we handle simple types with our own type switch here before the v1.Kind() switch is run.
 	//
 	//
-	// NOTE: We use v1.Interface().(type) here instead of v1.Kind() like below, because reflect.Kind doesn't
-	// distinguish between json.Number and string.
+	// NOTE: We use Type() for the switch here instead of Kind() like in the v1.Kind() switch below,
+	// because reflect.Kind doesn't distinguish between json.Number and string.
+	//
+	// NOTE: We use the switch on v2 here instead of v1 like the switch below. Since this package controls
+	// the deserialization of schemas we know that if v2 is a number it will always be a json.Number.
+	// We can't say the same for v1.
+	//
+	// TODO: We need to add tests where v2 is an integer and v1 is a float. Then we need code to cover
+	// that situation.
 	b1 := v1.Interface()
-	switch b2 := v2.Interface().(type) {
-	case string:
-		val, ok := b1.(string)
-		if ok {
-			return string(val) == b2
+	b2 := v2.Interface()
+	switch v2.Type() {
+	case stringType:
+		c1, ok1 := b1.(string)
+		c2, ok2 := b2.(string)
+		if ok1 && ok2 {
+			return c1 == c2
+		} else {
+			return false
 		}
-	case bool:
-		val, ok := b1.(bool)
-		if ok {
-			return bool(val) == b2
+	case boolType:
+		c1, ok1 := b1.(bool)
+		c2, ok2 := b2.(bool)
+		if ok1 && ok2 {
+			return c1 == c2
+		} else {
+			return false
 		}
-	case json.Number:
+	case jsonNumberType:
 		norm, err := normalizeNumber(b1)
 		if err != nil {
 			return false
 		}
-		intg, ok := norm.(int64)
-		if ok {
-			c, err := b2.Int64()
+		jnum, ok := b2.(json.Number)
+		if !ok {
+			return false
+		}
+		if strings.Contains(jnum.String(), ".") {
+			c2, err := jnum.Float64()
 			if err != nil {
 				return false
 			}
-			return intg == c
+			c1, ok := norm.(float64)
+			if !ok {
+				return false
+			}
+			return c1 == c2
+		} else {
+			c2, err := jnum.Int64()
+			if err != nil {
+				return false
+			}
+			c1, ok := norm.(int64)
+			if !ok {
+				return false
+			}
+			return c1 == c2
 		}
 	}
 	// END NEW FOR JSONSCHEMA
