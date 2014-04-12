@@ -77,6 +77,9 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 	return nil
 }
 
+// A SchemaSetter is a schema (such as maximum) whose validate method depends
+// on the values of neighboring schemas (such as exclusiveMaximum).
+// The SetSchema method gets the value of a schema's neighbors during json.Unmarshal.
 type SchemaSetter interface {
 	SetSchema(map[string]json.RawMessage)
 }

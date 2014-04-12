@@ -382,7 +382,7 @@ func (a oneOf) Validate(v interface{}) []ValidationError {
 	var succeeded int
 	for _, schema := range a {
 		if schema.Validate(v) == nil {
-			succeeded += 1
+			succeeded++
 		}
 	}
 	if succeeded != 1 {
@@ -429,7 +429,7 @@ func (t typeValidator) Validate(v interface{}) []ValidationError {
 
 	if !ok {
 		types := make([]string, 0, len(t))
-		for key, _ := range t {
+		for key := range t {
 			types = append(types, key)
 		}
 		return []ValidationError{ValidationError{
