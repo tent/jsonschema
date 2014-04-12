@@ -44,7 +44,7 @@ func normalizeNumber(v interface{}) (n interface{}, err error) {
 		n = int64(t)
 	case uint64:
 		n = t
-		err = fmt.Errorf("%s is not a supported type.", reflect.TypeOf(v))
+		err = fmt.Errorf("%s is not a supported type", reflect.TypeOf(v))
 
 	default:
 		n = t

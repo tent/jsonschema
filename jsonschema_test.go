@@ -56,9 +56,9 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 				err = correctValidation(path, cse, tst, errorList)
 				if err != nil {
 					t.Error(failureMessage(err, path, cse, tst, errorList))
-					*failures += 1
+					*failures++
 				} else {
-					*successes += 1
+					*successes++
 				}
 			}
 		}
