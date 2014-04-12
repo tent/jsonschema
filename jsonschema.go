@@ -24,7 +24,9 @@ var validatorMap = map[string]reflect.Type{
 	"items":    reflect.TypeOf(items{}),
 
 	// Objects
-	"properties": reflect.TypeOf(properties{}),
+	"maxProperties": reflect.TypeOf(maxProperties(0)),
+	"minProperties": reflect.TypeOf(minProperties(0)),
+	"properties":    reflect.TypeOf(properties{}),
 
 	// All types
 	"allOf": reflect.TypeOf(allOf{}),
@@ -79,7 +81,8 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 
 // A SchemaSetter is a schema (such as maximum) whose validate method depends
 // on the values of neighboring schemas (such as exclusiveMaximum).
-// The SetSchema method gets the value of a schema's neighbors during json.Unmarshal.
+// When a SchemaSetter is unmarshaled from JSON, SetSchema is called on each
+// of its neighbors to see if they're relevant to the schema being unmarshaled.
 type SchemaSetter interface {
 	SetSchema(map[string]json.RawMessage)
 }

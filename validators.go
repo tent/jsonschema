@@ -310,6 +310,58 @@ func (i *items) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type maxProperties int
+
+func (m maxProperties) Validate(v interface{}) []ValidationError {
+	val, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	if len(val) > int(m) {
+		return []ValidationError{ValidationError{
+			fmt.Sprintf("Object has more properties than maxProperties (%d > %d)", len(val), m)}}
+	}
+	return nil
+}
+
+func (m *maxProperties) UnmarshalJSON(b []byte) error {
+	var n int
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	if n < 0 {
+		return fmt.Errorf("maxProperties cannot be smaller than zero")
+	}
+	*m = maxProperties(n)
+	return nil
+}
+
+type minProperties int
+
+func (m minProperties) Validate(v interface{}) []ValidationError {
+	val, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	if len(val) < int(m) {
+		return []ValidationError{ValidationError{
+			fmt.Sprintf("Object has fewer properties than minProperties (%d < %d)", len(val), m)}}
+	}
+	return nil
+}
+
+func (m *minProperties) UnmarshalJSON(b []byte) error {
+	var n int
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	if n < 0 {
+		return fmt.Errorf("minProperties cannot be smaller than zero")
+	}
+	*m = minProperties(n)
+	return nil
+}
+
 type properties map[string]json.RawMessage
 
 func (p properties) Validate(v interface{}) []ValidationError {
