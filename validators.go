@@ -362,25 +362,49 @@ func (m *minProperties) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type properties map[string]json.RawMessage
+type properties struct {
+	object                     map[string]Schema
+	additionalPropertiesBool   bool
+	additionalPropertiesObject *Schema
+}
 
 func (p properties) Validate(v interface{}) []ValidationError {
 	var valErrs []ValidationError
-	for schemaKey, schemaValue := range p {
-		dataMap, ok := v.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if dataValue, ok := dataMap[schemaKey]; ok {
-			var schema Schema
-			err := json.Unmarshal(schemaValue, &schema)
-			if err != nil {
-				break
-			}
+	dataMap, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	for dataKey, dataValue := range dataMap {
+		schema, ok := p.object[dataKey]
+		if ok {
 			valErrs = append(valErrs, schema.Validate(dataValue)...)
+		} else if p.additionalPropertiesObject != nil {
+			valErrs = append(valErrs, p.additionalPropertiesObject.Validate(dataValue)...)
+		} else if !p.additionalPropertiesBool {
+			return []ValidationError{ValidationError{"Additional properties aren't allowed"}}
 		}
 	}
 	return valErrs
+}
+
+func (p *properties) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &p.object); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *properties) SetSchema(v map[string]json.RawMessage) {
+	p.additionalPropertiesBool = true
+	val, ok := v["additionalProperties"]
+	if !ok {
+		return
+	}
+	json.Unmarshal(val, &p.additionalPropertiesBool)
+	if err := json.Unmarshal(val, &p.additionalPropertiesObject); err != nil {
+		p.additionalPropertiesObject = nil
+	}
+	return
 }
 
 type allOf []Schema
