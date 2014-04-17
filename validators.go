@@ -412,6 +412,7 @@ func (p *patternProperties) UnmarshalJSON(b []byte) error {
 
 type properties struct {
 	object                     map[string]Schema
+	patternProperties          *patternProperties
 	additionalPropertiesBool   bool
 	additionalPropertiesObject *Schema
 }
@@ -422,34 +423,51 @@ func (p properties) Validate(v interface{}) []ValidationError {
 	if !ok {
 		return nil
 	}
-	for dataKey, dataValue := range dataMap {
+	for dataKey, dataVal := range dataMap {
+		var match = false
 		schema, ok := p.object[dataKey]
 		if ok {
-			valErrs = append(valErrs, schema.Validate(dataValue)...)
-		} else if p.additionalPropertiesObject != nil {
-			valErrs = append(valErrs, p.additionalPropertiesObject.Validate(dataValue)...)
-		} else if !p.additionalPropertiesBool {
-			return []ValidationError{ValidationError{"Additional properties aren't allowed"}}
+			valErrs = append(valErrs, schema.Validate(dataVal)...)
+			match = true
+		}
+		if p.patternProperties != nil {
+			for _, val := range p.patternProperties.object {
+				if val.regexp.MatchString(dataKey) {
+					valErrs = append(valErrs, val.schema.Validate(dataVal)...)
+					match = true
+				}
+			}
+		}
+		if match {
+			continue
+		}
+		if p.additionalPropertiesObject != nil {
+			valErrs = append(valErrs, p.additionalPropertiesObject.Validate(dataVal)...)
+			continue
+		}
+		if !p.additionalPropertiesBool {
+			valErrs = append([]ValidationError{ValidationError{"Additional properties aren't allowed"}})
 		}
 	}
 	return valErrs
 }
 
 func (p *properties) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &p.object); err != nil {
-		return err
-	}
-	return nil
+	return json.Unmarshal(b, &p.object)
 }
 
 func (p *properties) SetSchema(v map[string]json.RawMessage) error {
 	p.additionalPropertiesBool = true
-	val, ok := v["additionalProperties"]
+	val, ok := v["patternProperties"]
+	if ok {
+		json.Unmarshal(val, &p.patternProperties)
+	}
+	addVal, ok := v["additionalProperties"]
 	if !ok {
 		return nil
 	}
-	json.Unmarshal(val, &p.additionalPropertiesBool)
-	if err := json.Unmarshal(val, &p.additionalPropertiesObject); err != nil {
+	json.Unmarshal(addVal, &p.additionalPropertiesBool)
+	if err := json.Unmarshal(addVal, &p.additionalPropertiesObject); err != nil {
 		p.additionalPropertiesObject = nil
 	}
 	return nil
