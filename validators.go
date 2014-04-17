@@ -57,14 +57,14 @@ func (m maximum) isLargerThanFloat(n float64) (isLarger bool, err error) {
 	return max > n || !m.exclusive && max == n, nil
 }
 
-func (m *maximum) SetSchema(v map[string]json.RawMessage) {
+func (m *maximum) SetSchema(v map[string]json.RawMessage) error {
 	value, ok := v["exclusiveMaximum"]
 	if ok {
 		// Ignore errors from Unmarshal. If exclusiveMaximum is a non boolean JSON
 		// value we leave it as false.
 		json.Unmarshal(value, &m.exclusive)
 	}
-	return
+	return nil
 }
 
 func (m *maximum) UnmarshalJSON(b []byte) error {
@@ -120,14 +120,14 @@ func (m minimum) isLargerThanFloat(n float64) (isLarger bool, err error) {
 	return min > n || !m.exclusive && min == n, nil
 }
 
-func (m *minimum) SetSchema(v map[string]json.RawMessage) {
+func (m *minimum) SetSchema(v map[string]json.RawMessage) error {
 	value, ok := v["exclusiveminimum"]
 	if ok {
 		// Ignore errors from Unmarshal. If exclusiveminimum is a non boolean JSON
 		// value we leave it as false.
 		json.Unmarshal(value, &m.exclusive)
 	}
-	return
+	return nil
 }
 
 func (m *minimum) UnmarshalJSON(b []byte) error {
@@ -288,15 +288,15 @@ func (i items) Validate(v interface{}) []ValidationError {
 	return valErrs
 }
 
-func (i *items) SetSchema(v map[string]json.RawMessage) {
+func (i *items) SetSchema(v map[string]json.RawMessage) error {
 	i.additionalAllowed = true
 	value, ok := v["additionalItems"]
 	if !ok {
-		return
+		return nil
 	}
 	json.Unmarshal(value, &i.additionalAllowed)
 	json.Unmarshal(value, &i.additionalItems)
-	return
+	return nil
 }
 
 func (i *items) UnmarshalJSON(b []byte) error {
@@ -362,6 +362,54 @@ func (m *minProperties) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type patternProperties struct {
+	object []regexpToSchema
+}
+
+type regexpToSchema struct {
+	regexp regexp.Regexp
+	schema Schema
+}
+
+func (p patternProperties) Validate(v interface{}) []ValidationError {
+	var valErrs []ValidationError
+	data, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	for dataKey, dataVal := range data {
+		for _, val := range p.object {
+			if val.regexp.MatchString(dataKey) {
+				valErrs = append(valErrs, val.schema.Validate(dataVal)...)
+			}
+		}
+	}
+	return valErrs
+}
+
+func (p *patternProperties) SetSchema(v map[string]json.RawMessage) error {
+	if _, ok := v["properties"]; ok {
+		return fmt.Errorf("we don't need an independent 'patternProperties' validator, " +
+			"because 'properties' is one of this schema key's neighbors and will handle its validation")
+	}
+	return nil
+}
+
+func (p *patternProperties) UnmarshalJSON(b []byte) error {
+	var m map[string]Schema
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	for key, val := range m {
+		r, err := regexp.Compile(key)
+		if err != nil {
+			return err
+		}
+		p.object = append(p.object, regexpToSchema{*r, val})
+	}
+	return nil
+}
+
 type properties struct {
 	object                     map[string]Schema
 	additionalPropertiesBool   bool
@@ -394,17 +442,17 @@ func (p *properties) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (p *properties) SetSchema(v map[string]json.RawMessage) {
+func (p *properties) SetSchema(v map[string]json.RawMessage) error {
 	p.additionalPropertiesBool = true
 	val, ok := v["additionalProperties"]
 	if !ok {
-		return
+		return nil
 	}
 	json.Unmarshal(val, &p.additionalPropertiesBool)
 	if err := json.Unmarshal(val, &p.additionalPropertiesObject); err != nil {
 		p.additionalPropertiesObject = nil
 	}
-	return
+	return nil
 }
 
 type allOf []Schema

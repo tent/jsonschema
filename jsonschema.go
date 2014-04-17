@@ -24,9 +24,10 @@ var validatorMap = map[string]reflect.Type{
 	"items":    reflect.TypeOf(items{}),
 
 	// Objects
-	"maxProperties": reflect.TypeOf(maxProperties(0)),
-	"minProperties": reflect.TypeOf(minProperties(0)),
-	"properties":    reflect.TypeOf(properties{}),
+	"maxProperties":     reflect.TypeOf(maxProperties(0)),
+	"minProperties":     reflect.TypeOf(minProperties(0)),
+	"patternProperties": reflect.TypeOf(patternProperties{}),
+	"properties":        reflect.TypeOf(properties{}),
 
 	// All types
 	"allOf": reflect.TypeOf(allOf{}),
@@ -70,21 +71,31 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 			if err := decoder.Decode(newValidator); err != nil {
 				continue
 			}
+
+			// Make changes to a validator based on its neighbors, if appropriate.
+			//
+			// The validator's creation is canceled if SetSchema returns an error.
+			// This is useful for validators that can be independent, but are handled
+			// within some other validator if the other is present. For example
+			// 'patternProperties' cancels its creation here if 'properties' is present.
 			if v, ok := newValidator.(SchemaSetter); ok {
-				v.SetSchema(schemaMap)
+				if err := v.SetSchema(schemaMap); err != nil {
+					continue
+				}
 			}
+
 			s.vals = append(s.vals, newValidator)
 		}
 	}
 	return nil
 }
 
-// A SchemaSetter is a schema (such as maximum) whose validate method depends
-// on the values of neighboring schemas (such as exclusiveMaximum).
-// When a SchemaSetter is unmarshaled from JSON, SetSchema is called on each
-// of its neighbors to see if they're relevant to the schema being unmarshaled.
+// A SchemaSetter is a validator (such as maximum) whose validate method depends
+// on neighboring schema keys (such as exclusiveMaximum). When a SchemaSetter is
+// unmarshaled from JSON, SetSchema is called on its neighbors to see if any of
+// them are relevant to the validator being unmarshaled.
 type SchemaSetter interface {
-	SetSchema(map[string]json.RawMessage)
+	SetSchema(map[string]json.RawMessage) error
 }
 
 type Schema struct {
