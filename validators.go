@@ -473,6 +473,34 @@ func (p *properties) SetSchema(v map[string]json.RawMessage) error {
 	return nil
 }
 
+type required map[string]bool
+
+func (r required) Validate(v interface{}) []ValidationError {
+	var valErrs []ValidationError
+	data, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	for key := range r {
+		if _, ok := data[key]; !ok {
+			valErrs = append(valErrs, ValidationError{fmt.Sprintf("Required error. The data must be an object with %v as one of its keys", key)})
+		}
+	}
+	return valErrs
+}
+
+func (r *required) UnmarshalJSON(b []byte) error {
+	var l []string
+	if err := json.Unmarshal(b, &l); err != nil {
+		return err
+	}
+	*r = make(required)
+	for _, val := range l {
+		(*r)[val] = true
+	}
+	return nil
+}
+
 type allOf []Schema
 
 func (a allOf) Validate(v interface{}) (valErrs []ValidationError) {
