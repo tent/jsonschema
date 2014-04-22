@@ -2,6 +2,7 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -330,7 +331,7 @@ func (m *maxProperties) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	if n < 0 {
-		return fmt.Errorf("maxProperties cannot be smaller than zero")
+		return errors.New("maxProperties cannot be smaller than zero")
 	}
 	*m = maxProperties(n)
 	return nil
@@ -356,7 +357,7 @@ func (m *minProperties) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	if n < 0 {
-		return fmt.Errorf("minProperties cannot be smaller than zero")
+		return errors.New("minProperties cannot be smaller than zero")
 	}
 	*m = minProperties(n)
 	return nil
@@ -389,8 +390,7 @@ func (p patternProperties) Validate(v interface{}) []ValidationError {
 
 func (p *patternProperties) SetSchema(v map[string]json.RawMessage) error {
 	if _, ok := v["properties"]; ok {
-		return fmt.Errorf("we don't need an independent 'patternProperties' validator, " +
-			"because 'properties' is one of this schema key's neighbors and will handle its validation")
+		return errors.New("superseded by 'properties' neighbor")
 	}
 	return nil
 }
@@ -473,7 +473,7 @@ func (p *properties) SetSchema(v map[string]json.RawMessage) error {
 	return nil
 }
 
-type required map[string]bool
+type required map[string]struct{}
 
 func (r required) Validate(v interface{}) []ValidationError {
 	var valErrs []ValidationError
@@ -496,7 +496,7 @@ func (r *required) UnmarshalJSON(b []byte) error {
 	}
 	*r = make(required)
 	for _, val := range l {
-		(*r)[val] = true
+		(*r)[val] = struct{}{}
 	}
 	return nil
 }
