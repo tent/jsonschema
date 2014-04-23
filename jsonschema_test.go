@@ -10,6 +10,8 @@ import (
 	"testing"
 )
 
+var notSupported = map[string]struct{}{"uniqueItems.json": struct{}{}}
+
 func TestDraft4(t *testing.T) {
 	testResources := filepath.Join("JSON-Schema-Test-Suite", "tests", "draft4")
 	if _, err := os.Stat(testResources); err != nil {
@@ -29,6 +31,9 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 			return err
 		}
 		if info.IsDir() {
+			return nil
+		}
+		if _, ok := notSupported[info.Name()]; ok {
 			return nil
 		}
 
