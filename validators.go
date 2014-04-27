@@ -355,26 +355,26 @@ func (d *dependencies) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	d.schemaDeps = make(map[string]Schema)
-	for key, val := range c {
+	d.schemaDeps = make(map[string]Schema, len(c))
+	for k, v := range c {
 		var s Schema
-		if err := json.Unmarshal(val, &s); err != nil {
+		if err := json.Unmarshal(v, &s); err != nil {
 			continue
 		}
-		d.schemaDeps[key] = s
+		d.schemaDeps[k] = s
 	}
 
-	d.propertyDeps = make(map[string]propertySet)
-	for key, val := range c {
+	d.propertyDeps = make(map[string]propertySet, len(c))
+	for k, v := range c {
 		var props []string
-		if err := json.Unmarshal(val, &props); err != nil {
+		if err := json.Unmarshal(v, &props); err != nil {
 			continue
 		}
-		var set = make(propertySet)
+		set := make(propertySet, len(props))
 		for _, p := range props {
 			set[p] = struct{}{}
 		}
-		d.propertyDeps[key] = set
+		d.propertyDeps[k] = set
 	}
 
 	if len(d.propertyDeps) == 0 && len(d.schemaDeps) == 0 {
