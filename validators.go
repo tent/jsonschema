@@ -311,6 +311,78 @@ func (i *items) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type dependencies struct {
+	schemaDeps   map[string]Schema
+	propertyDeps map[string]propertySet
+}
+
+type propertySet map[string]struct{}
+
+func (d dependencies) Validate(v interface{}) []ValidationError {
+	var valErrs []ValidationError
+	val, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Handle schema dependencies.
+	for key, schema := range d.schemaDeps {
+		if _, ok := val[key]; !ok {
+			continue
+		}
+		valErrs = append(valErrs, schema.Validate(v)...)
+	}
+
+	// Handle property dependencies.
+	for key, set := range d.propertyDeps {
+		if _, ok := val[key]; !ok {
+			continue
+		}
+		for a := range set {
+			if _, ok := val[a]; !ok {
+				valErrs = append(valErrs, ValidationError{
+					fmt.Sprintf("instance does not have a property with the name %s", a)})
+			}
+		}
+	}
+
+	return valErrs
+}
+
+func (d *dependencies) UnmarshalJSON(b []byte) error {
+	var c map[string]json.RawMessage
+	if err := json.Unmarshal(b, &c); err != nil {
+		return err
+	}
+
+	d.schemaDeps = make(map[string]Schema, len(c))
+	for k, v := range c {
+		var s Schema
+		if err := json.Unmarshal(v, &s); err != nil {
+			continue
+		}
+		d.schemaDeps[k] = s
+	}
+
+	d.propertyDeps = make(map[string]propertySet, len(c))
+	for k, v := range c {
+		var props []string
+		if err := json.Unmarshal(v, &props); err != nil {
+			continue
+		}
+		set := make(propertySet, len(props))
+		for _, p := range props {
+			set[p] = struct{}{}
+		}
+		d.propertyDeps[k] = set
+	}
+
+	if len(d.propertyDeps) == 0 && len(d.schemaDeps) == 0 {
+		return errors.New("no valid schema or property dependency validators")
+	}
+	return nil
+}
+
 type maxProperties int
 
 func (m maxProperties) Validate(v interface{}) []ValidationError {
