@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -219,6 +221,53 @@ func (p *pattern) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	p.Regexp = *r
+	return nil
+}
+
+type format string
+
+var dateTimeRegexp = regexp.MustCompile(`^([0-9]{4})-([0-9]{2})-([0-9]{2})([Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?)?([Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(\\.[0-9]+)?)?(([Zz]|([+-])([0-9]{2}):([0-9]{2})))?`)
+var mailRegexp = regexp.MustCompile(".+@.+")
+var hostnameRegexp = regexp.MustCompile(`^[a-zA-Z](([-0-9a-zA-Z]+)?[0-9a-zA-Z])?(\.[a-zA-Z](([-0-9a-zA-Z]+)?[0-9a-zA-Z])?)*$`)
+
+func (f format) Validate(v interface{}) []ValidationError {
+	s, ok := v.(string)
+	if !ok {
+		return nil
+	}
+	switch f {
+	case "date-time":
+		if !dateTimeRegexp.MatchString(s) {
+			return []ValidationError{ValidationError{"Value must conform to RFC3339."}}
+		}
+	case "uri":
+		if _, err := url.ParseRequestURI(s); err != nil {
+			return []ValidationError{ValidationError{"Value must be a valid URI, according to RFC3986."}}
+		}
+	case "email":
+		if !mailRegexp.MatchString(s) {
+			return []ValidationError{ValidationError{"Value must be a valid email address, according to RFC5322."}}
+		}
+	case "ipv4":
+		if net.ParseIP(s).To4() == nil {
+			return []ValidationError{ValidationError{"Value must be a valid IPv4 address."}}
+		}
+	case "ipv6":
+		if net.ParseIP(s).To16() == nil {
+			return []ValidationError{ValidationError{"Value must be a valid IPv6 address."}}
+		}
+	case "hostname":
+		formatErr := []ValidationError{ValidationError{"Value must be a valid hostname."}}
+		if !hostnameRegexp.MatchString(s) || utf8.RuneCountInString(s) > 255 {
+			return formatErr
+		}
+		labels := strings.Split(s, ".")
+		for _, label := range labels {
+			if utf8.RuneCountInString(label) > 63 {
+				return formatErr
+			}
+		}
+	}
 	return nil
 }
 
