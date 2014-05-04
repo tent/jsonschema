@@ -65,7 +65,7 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 	if err := json.Unmarshal(bts, &schemaMap); err != nil {
 		return err
 	}
-	s.vals = make([]Validator, 0, len(schemaMap))
+	s.vals = make(map[string]Validator, len(schemaMap))
 	for schemaKey, schemaValue := range schemaMap {
 		if typ, ok := validatorMap[schemaKey]; ok {
 			var newValidator = reflect.New(typ).Interface().(Validator)
@@ -87,7 +87,7 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 				}
 			}
 
-			s.vals = append(s.vals, newValidator)
+			s.vals[schemaKey] = newValidator
 		}
 	}
 	return nil
@@ -102,7 +102,7 @@ type SchemaSetter interface {
 }
 
 type Schema struct {
-	vals []Validator
+	vals map[string]Validator
 }
 
 type ValidationError struct {
