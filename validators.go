@@ -271,6 +271,23 @@ func (f format) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
+// Dummy validator for use by the "$ref" keyword. Actual validation of "additionalItems"
+// will always be handled by "items".
+type additionalItems Schema
+
+func (a additionalItems) Validate(v interface{}) []ValidationError {
+	return nil
+}
+
+func (a *additionalItems) UnmarshalJSON(b []byte) error {
+	var s Schema
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	*a = additionalItems(s)
+	return nil
+}
+
 type maxItems int
 
 func (m maxItems) Validate(v interface{}) []ValidationError {
@@ -485,7 +502,8 @@ func (m *minProperties) UnmarshalJSON(b []byte) error {
 }
 
 type patternProperties struct {
-	object []regexpToSchema
+	object               []regexpToSchema
+	propertiesIsNeighbor bool
 }
 
 type regexpToSchema struct {
@@ -494,6 +512,11 @@ type regexpToSchema struct {
 }
 
 func (p patternProperties) Validate(v interface{}) []ValidationError {
+	// In this case validation will be handled by the "properties" validator.
+	if p.propertiesIsNeighbor == true {
+		return nil
+	}
+
 	var valErrs []ValidationError
 	data, ok := v.(map[string]interface{})
 	if !ok {
@@ -511,7 +534,7 @@ func (p patternProperties) Validate(v interface{}) []ValidationError {
 
 func (p *patternProperties) SetSchema(v map[string]json.RawMessage) error {
 	if _, ok := v["properties"]; ok {
-		return errors.New("superseded by 'properties' neighbor")
+		p.propertiesIsNeighbor = true
 	}
 	return nil
 }

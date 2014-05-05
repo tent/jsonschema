@@ -20,9 +20,10 @@ var validatorMap = map[string]reflect.Type{
 	"format":    reflect.TypeOf(format("")),
 
 	// Arrays
-	"maxItems": reflect.TypeOf(maxItems(0)),
-	"minItems": reflect.TypeOf(minItems(0)),
-	"items":    reflect.TypeOf(items{}),
+	"additionalItems": reflect.TypeOf(additionalItems{}),
+	"maxItems":        reflect.TypeOf(maxItems(0)),
+	"minItems":        reflect.TypeOf(minItems(0)),
+	"items":           reflect.TypeOf(items{}),
 
 	// Objects
 	"dependencies":      reflect.TypeOf(dependencies{}),
@@ -76,15 +77,8 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 			}
 
 			// Make changes to a validator based on its neighbors, if appropriate.
-			//
-			// The validator's creation is canceled if SetSchema returns an error.
-			// This is useful for validators that can be independent, but are handled
-			// within some other validator if the other is present. For example
-			// 'patternProperties' cancels its creation here if 'properties' is present.
 			if v, ok := newValidator.(SchemaSetter); ok {
-				if err := v.SetSchema(schemaMap); err != nil {
-					continue
-				}
+				v.SetSchema(schemaMap)
 			}
 
 			s.vals[schemaKey] = newValidator
