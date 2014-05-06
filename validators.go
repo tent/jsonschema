@@ -350,12 +350,16 @@ func (i *items) SetSchema(v map[string]json.RawMessage) error {
 }
 
 func (i *items) UnmarshalJSON(b []byte) error {
-	if err1 := json.Unmarshal(b, &i.schema); err1 != nil {
+	err1 := json.Unmarshal(b, &i.schema)
+	if err1 != nil {
 		i.schema = nil
 	}
-	if err := json.Unmarshal(b, &i.schemaSlice); err != nil {
+	err2 := json.Unmarshal(b, &i.schemaSlice)
+	if err2 != nil {
 		i.schemaSlice = nil
-		return err
+	}
+	if err1 != nil && err2 != nil {
+		return err2
 	}
 	return nil
 }
