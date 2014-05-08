@@ -4,12 +4,35 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"regexp"
 	"strings"
 	"unicode/utf8"
 )
+
+// A dummy schema used if we don't recognize a schema key. We unmarshal the key's contents anyway
+// because it might contain embedded schemas referenced elsewhere in the document.
+//
+// Does this work with additionalProperties??
+//
+// TODO: should probably be interface{} and handle lists, dicts of schemas
+// as well as single schemas.
+type other Schema
+
+func (o other) Validate(v interface{}) []ValidationError {
+	return nil
+}
+
+func (o *other) UnmarshalJSON(b []byte) error {
+	var s Schema
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	*o = other(s)
+	return nil
+}
 
 type maximum struct {
 	json.Number
@@ -97,7 +120,7 @@ func (m minimum) Validate(v interface{}) []ValidationError {
 		return nil
 	}
 	if isLarger {
-		minErr := fmt.Sprintf("Value must be smaller than %s.", m)
+		minErr := fmt.Sprintf("Value must be larger than %s.", m)
 		return []ValidationError{ValidationError{minErr}}
 	}
 	return nil
@@ -485,15 +508,21 @@ func (m *minProperties) UnmarshalJSON(b []byte) error {
 }
 
 type patternProperties struct {
-	object []regexpToSchema
+	object               map[string]regexpAndSchema
+	propertiesIsNeighbor bool
 }
 
-type regexpToSchema struct {
+type regexpAndSchema struct {
 	regexp regexp.Regexp
 	schema Schema
 }
 
 func (p patternProperties) Validate(v interface{}) []ValidationError {
+	// In this case validation will be handled by the "properties" validator.
+	if p.propertiesIsNeighbor == true {
+		return nil
+	}
+
 	var valErrs []ValidationError
 	data, ok := v.(map[string]interface{})
 	if !ok {
@@ -511,7 +540,7 @@ func (p patternProperties) Validate(v interface{}) []ValidationError {
 
 func (p *patternProperties) SetSchema(v map[string]json.RawMessage) error {
 	if _, ok := v["properties"]; ok {
-		return errors.New("superseded by 'properties' neighbor")
+		p.propertiesIsNeighbor = true
 	}
 	return nil
 }
@@ -521,24 +550,26 @@ func (p *patternProperties) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return err
 	}
+	p.object = make(map[string]regexpAndSchema, len(m))
 	for key, val := range m {
 		r, err := regexp.Compile(key)
 		if err != nil {
 			return err
 		}
-		p.object = append(p.object, regexpToSchema{*r, val})
+		p.object[key] = regexpAndSchema{*r, val}
 	}
 	return nil
 }
 
 type properties struct {
-	object                     map[string]Schema
+	object                     map[string]*Schema
 	patternProperties          *patternProperties
 	additionalPropertiesBool   bool
 	additionalPropertiesObject *Schema
 }
 
 func (p properties) Validate(v interface{}) []ValidationError {
+	log.Println("validating properties")
 	var valErrs []ValidationError
 	dataMap, ok := v.(map[string]interface{})
 	if !ok {
@@ -570,6 +601,11 @@ func (p properties) Validate(v interface{}) []ValidationError {
 			valErrs = append([]ValidationError{ValidationError{"Additional properties aren't allowed"}})
 		}
 	}
+	// ax := p.object["definitions"]
+	// for _, v := range ax.vals {
+	// 	log.Println(v)
+	// }
+	log.Println("ending properties")
 	return valErrs
 }
 
@@ -643,6 +679,21 @@ func (a anyOf) Validate(v interface{}) []ValidationError {
 		ValidationError{"Validation failed for each schema in 'anyOf'."}}
 }
 
+type definitions map[string]*Schema
+
+func (d definitions) Validate(v interface{}) []ValidationError {
+	return nil
+}
+
+func (d *definitions) UnmarshalJSON(b []byte) error {
+	var m map[string]*Schema
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	*d = definitions(m)
+	return nil
+}
+
 type enum []interface{}
 
 func (a enum) Validate(v interface{}) []ValidationError {
@@ -660,7 +711,7 @@ type not struct {
 }
 
 func (n not) Validate(v interface{}) []ValidationError {
-	schema := Schema{n.vals}
+	schema := Schema{n.vals, false}
 	if schema.Validate(v) == nil {
 		return []ValidationError{ValidationError{"The 'not' schema didn't raise an error."}}
 	}
@@ -680,6 +731,14 @@ func (a oneOf) Validate(v interface{}) []ValidationError {
 		return []ValidationError{ValidationError{
 			fmt.Sprintf("Validation passed for %d schemas in 'oneOf'.", succeeded)}}
 	}
+	return nil
+}
+
+type ref string
+
+func (r ref) Validate(v interface{}) []ValidationError {
+	log.Println("running ref val:")
+	log.Println(r)
 	return nil
 }
 

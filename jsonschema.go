@@ -33,12 +33,14 @@ var validatorMap = map[string]reflect.Type{
 	"required":          reflect.TypeOf(required{}),
 
 	// All types
-	"allOf": reflect.TypeOf(allOf{}),
-	"anyOf": reflect.TypeOf(anyOf{}),
-	"enum":  reflect.TypeOf(enum{}),
-	"not":   reflect.TypeOf(not{}),
-	"oneOf": reflect.TypeOf(oneOf{}),
-	"type":  reflect.TypeOf(typeValidator{})}
+	"allOf":       reflect.TypeOf(allOf{}),
+	"anyOf":       reflect.TypeOf(anyOf{}),
+	"definitions": reflect.TypeOf(definitions{}),
+	"enum":        reflect.TypeOf(enum{}),
+	"not":         reflect.TypeOf(not{}),
+	"oneOf":       reflect.TypeOf(oneOf{}),
+	"$ref":        reflect.TypeOf(ref("")),
+	"type":        reflect.TypeOf(typeValidator{})}
 
 type Validator interface {
 	Validate(interface{}) []ValidationError
@@ -49,6 +51,7 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 	if err := json.NewDecoder(schemaBytes).Decode(&schema); err != nil {
 		return nil, err
 	}
+	schema.resolveRefs()
 	return schema, nil
 }
 
@@ -67,28 +70,26 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 	}
 	s.vals = make(map[string]Validator, len(schemaMap))
 	for schemaKey, schemaValue := range schemaMap {
+
+		var newValidator Validator
 		if typ, ok := validatorMap[schemaKey]; ok {
-			var newValidator = reflect.New(typ).Interface().(Validator)
-			decoder := json.NewDecoder(bytes.NewReader(schemaValue))
-			decoder.UseNumber()
-			if err := decoder.Decode(newValidator); err != nil {
-				continue
-			}
-
-			// Make changes to a validator based on its neighbors, if appropriate.
-			//
-			// The validator's creation is canceled if SetSchema returns an error.
-			// This is useful for validators that can be independent, but are handled
-			// within some other validator if the other is present. For example
-			// 'patternProperties' cancels its creation here if 'properties' is present.
-			if v, ok := newValidator.(SchemaSetter); ok {
-				if err := v.SetSchema(schemaMap); err != nil {
-					continue
-				}
-			}
-
-			s.vals[schemaKey] = newValidator
+			newValidator = reflect.New(typ).Interface().(Validator)
+		} else {
+			// Even if we don't recognize a schema key, we unmarshal its contents anyway
+			// because it might contain embedded schemas referenced elsewhere in the document.
+			newValidator = new(other)
 		}
+
+		decoder := json.NewDecoder(bytes.NewReader(schemaValue))
+		decoder.UseNumber()
+		if err := decoder.Decode(newValidator); err != nil {
+			continue
+		}
+		// Make changes to a validator based on its neighbors, if appropriate.
+		if v, ok := newValidator.(SchemaSetter); ok {
+			v.SetSchema(schemaMap)
+		}
+		s.vals[schemaKey] = newValidator
 	}
 	return nil
 }
@@ -102,7 +103,8 @@ type SchemaSetter interface {
 }
 
 type Schema struct {
-	vals map[string]Validator
+	vals     map[string]Validator
+	resolved bool
 }
 
 type ValidationError struct {
