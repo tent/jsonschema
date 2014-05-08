@@ -20,9 +20,10 @@ var validatorMap = map[string]reflect.Type{
 	"format":    reflect.TypeOf(format("")),
 
 	// Arrays
-	"maxItems": reflect.TypeOf(maxItems(0)),
-	"minItems": reflect.TypeOf(minItems(0)),
-	"items":    reflect.TypeOf(items{}),
+	"additionalItems": reflect.TypeOf(additionalItems{}),
+	"maxItems":        reflect.TypeOf(maxItems(0)),
+	"minItems":        reflect.TypeOf(minItems(0)),
+	"items":           reflect.TypeOf(items{}),
 
 	// Objects
 	"dependencies":      reflect.TypeOf(dependencies{}),
@@ -33,12 +34,14 @@ var validatorMap = map[string]reflect.Type{
 	"required":          reflect.TypeOf(required{}),
 
 	// All types
-	"allOf": reflect.TypeOf(allOf{}),
-	"anyOf": reflect.TypeOf(anyOf{}),
-	"enum":  reflect.TypeOf(enum{}),
-	"not":   reflect.TypeOf(not{}),
-	"oneOf": reflect.TypeOf(oneOf{}),
-	"type":  reflect.TypeOf(typeValidator{})}
+	"allOf":       reflect.TypeOf(allOf{}),
+	"anyOf":       reflect.TypeOf(anyOf{}),
+	"definitions": reflect.TypeOf(definitions{}),
+	"enum":        reflect.TypeOf(enum{}),
+	"not":         reflect.TypeOf(not{}),
+	"oneOf":       reflect.TypeOf(oneOf{}),
+	"$ref":        reflect.TypeOf(ref("")),
+	"type":        reflect.TypeOf(typeValidator{})}
 
 type Validator interface {
 	Validate(interface{}) []ValidationError
@@ -49,13 +52,14 @@ func Parse(schemaBytes io.Reader) (*Schema, error) {
 	if err := json.NewDecoder(schemaBytes).Decode(&schema); err != nil {
 		return nil, err
 	}
+	schema.resolveRefs()
 	return schema, nil
 }
 
 func (s *Schema) Validate(v interface{}) []ValidationError {
 	var valErrs []ValidationError
-	for _, validator := range s.vals {
-		valErrs = append(valErrs, validator.Validate(v)...)
+	for _, node := range s.nodes {
+		valErrs = append(valErrs, node.Validator.Validate(v)...)
 	}
 	return valErrs
 }
@@ -65,44 +69,68 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 	if err := json.Unmarshal(bts, &schemaMap); err != nil {
 		return err
 	}
-	s.vals = make(map[string]Validator, len(schemaMap))
+	s.nodes = make(map[string]*Node, len(schemaMap))
 	for schemaKey, schemaValue := range schemaMap {
+
+		var newNode Node
+		newNode.EmbeddedSchemas = make(map[string]*Schema)
+
 		if typ, ok := validatorMap[schemaKey]; ok {
-			var newValidator = reflect.New(typ).Interface().(Validator)
-			decoder := json.NewDecoder(bytes.NewReader(schemaValue))
-			decoder.UseNumber()
-			if err := decoder.Decode(newValidator); err != nil {
-				continue
-			}
+			newNode.Validator = reflect.New(typ).Interface().(Validator)
+		} else {
+			// Even if we don't recognize a schema key, we unmarshal its contents anyway
+			// because it might contain embedded schemas referenced elsewhere in the document.
+			newNode.Validator = new(other)
+		}
 
-			// Make changes to a validator based on its neighbors, if appropriate.
-			//
-			// The validator's creation is canceled if SetSchema returns an error.
-			// This is useful for validators that can be independent, but are handled
-			// within some other validator if the other is present. For example
-			// 'patternProperties' cancels its creation here if 'properties' is present.
-			if v, ok := newValidator.(SchemaSetter); ok {
-				if err := v.SetSchema(schemaMap); err != nil {
-					continue
-				}
-			}
+		if v, ok := newNode.Validator.(SchemaEmbedder); ok {
+			v.LinkEmbedded(newNode.EmbeddedSchemas)
+		}
+		decoder := json.NewDecoder(bytes.NewReader(schemaValue))
+		decoder.UseNumber()
+		if err := decoder.Decode(newNode.Validator); err != nil {
+			continue
+		}
 
-			s.vals[schemaKey] = newValidator
+		// Make changes to a validator based on its neighbors, if appropriate.
+		//
+		// NOTE: this is deprecated in favor of UsesNeighboringSchemas.
+		if v, ok := newNode.Validator.(SchemaSetter); ok {
+			v.SetSchema(schemaMap)
+		}
+
+		s.nodes[schemaKey] = &newNode
+	}
+	for _, n := range s.nodes {
+		if v, ok := n.Validator.(UsesNeighboringSchemas); ok {
+			v.GetNeighboringSchemas(s.nodes)
 		}
 	}
 	return nil
+}
+
+type UsesNeighboringSchemas interface {
+	GetNeighboringSchemas(map[string]*Node)
 }
 
 // A SchemaSetter is a validator (such as maximum) whose validate method depends
 // on neighboring schema keys (such as exclusiveMaximum). When a SchemaSetter is
 // unmarshaled from JSON, SetSchema is called on its neighbors to see if any of
 // them are relevant to the validator being unmarshaled.
+//
+// NOTE: this is deprecated in favor of UsesNeighboringSchemas.
 type SchemaSetter interface {
 	SetSchema(map[string]json.RawMessage) error
 }
 
 type Schema struct {
-	vals map[string]Validator
+	nodes    map[string]*Node
+	resolved bool
+}
+
+type Node struct {
+	EmbeddedSchemas map[string]*Schema
+	Validator       Validator
 }
 
 type ValidationError struct {
