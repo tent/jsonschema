@@ -22,6 +22,10 @@ func (a *dependencies) LinkEmbedded(b map[string]*Schema) {
 	a.EmbeddedSchemas = b
 }
 
+func (a *additionalProperties) LinkEmbedded(b map[string]*Schema) {
+	a.EmbeddedSchemas = b
+}
+
 func (a *patternProperties) LinkEmbedded(b map[string]*Schema) {
 	a.EmbeddedSchemas = b
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"regexp"
@@ -497,6 +498,37 @@ func (d *dependencies) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// TODO: just covers schemas, not bools.
+type additionalProperties struct {
+	EmbeddedSchemas      map[string]*Schema
+	propertiesIsNeighbor bool
+}
+
+func (a additionalProperties) Validate(v interface{}) []ValidationError {
+	// In this case validation will be handled by the "properties" validator.
+	if a.propertiesIsNeighbor == true {
+		return nil
+	}
+	var valErrs []ValidationError
+	dataMap, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	for _, dataVal := range dataMap {
+		valErrs = append(valErrs, a.EmbeddedSchemas[""].Validate(dataVal)...)
+	}
+	return valErrs
+}
+
+func (a *additionalProperties) UnmarshalJSON(b []byte) error {
+	var s Schema
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	a.EmbeddedSchemas[""] = &s
+	return nil
+}
+
 type maxProperties int
 
 func (m maxProperties) Validate(v interface{}) []ValidationError {
@@ -507,6 +539,13 @@ func (m maxProperties) Validate(v interface{}) []ValidationError {
 	if len(val) > int(m) {
 		return []ValidationError{ValidationError{
 			fmt.Sprintf("Object has more properties than maxProperties (%d > %d)", len(val), m)}}
+	}
+	return nil
+}
+
+func (p *additionalProperties) SetSchema(v map[string]json.RawMessage) error {
+	if _, ok := v["properties"]; ok {
+		p.propertiesIsNeighbor = true
 	}
 	return nil
 }
@@ -668,7 +707,10 @@ func (p *properties) SetSchema(v map[string]json.RawMessage) error {
 	json.Unmarshal(addVal, &p.additionalPropertiesBool)
 	if err := json.Unmarshal(addVal, &p.additionalPropertiesObject); err != nil {
 		p.additionalPropertiesObject = nil
+		return err
 	}
+	// TODO: this is wrong.
+	p.EmbeddedSchemas[""] = p.additionalPropertiesObject
 	return nil
 }
 
@@ -825,6 +867,8 @@ func (o *oneOf) UnmarshalJSON(b []byte) error {
 type ref string
 
 func (r ref) Validate(v interface{}) []ValidationError {
+	log.Println("Running ref.Validate")
+	log.Println(r)
 	return nil
 }
 
