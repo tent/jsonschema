@@ -63,19 +63,17 @@ func deepValueEqual(v1, v2 reflect.Value, visited map[visit]bool, depth int) boo
 	case stringType:
 		c1, ok1 := b1.(string)
 		c2, ok2 := b2.(string)
-		if ok1 && ok2 {
-			return c1 == c2
-		} else {
+		if !ok1 || !ok2 {
 			return false
 		}
+		return c1 == c2
 	case boolType:
 		c1, ok1 := b1.(bool)
 		c2, ok2 := b2.(bool)
-		if ok1 && ok2 {
-			return c1 == c2
-		} else {
+		if !ok1 || !ok2 {
 			return false
 		}
+		return c1 == c2
 	case jsonNumberType:
 		norm, err := normalizeNumber(b1)
 		if err != nil {
