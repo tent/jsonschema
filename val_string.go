@@ -42,18 +42,6 @@ type pattern struct {
 	regexp.Regexp
 }
 
-func (p pattern) Validate(v interface{}) []ValidationError {
-	s, ok := v.(string)
-	if !ok {
-		return nil
-	}
-	if !p.MatchString(s) {
-		patErr := ValidationError{fmt.Sprintf("String must match the pattern: \"%s\".", p.String())}
-		return []ValidationError{patErr}
-	}
-	return nil
-}
-
 func (p *pattern) UnmarshalJSON(b []byte) error {
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
@@ -64,6 +52,18 @@ func (p *pattern) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	p.Regexp = *r
+	return nil
+}
+
+func (p pattern) Validate(v interface{}) []ValidationError {
+	s, ok := v.(string)
+	if !ok {
+		return nil
+	}
+	if !p.MatchString(s) {
+		patErr := ValidationError{fmt.Sprintf("String must match the pattern: \"%s\".", p.String())}
+		return []ValidationError{patErr}
+	}
 	return nil
 }
 

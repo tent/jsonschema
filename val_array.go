@@ -44,6 +44,28 @@ type items struct {
 	additionalItems   *Schema
 }
 
+func (i *items) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &i.schema); err == nil {
+		return nil
+	}
+	i.schema = nil
+	if err := json.Unmarshal(b, &i.schemaSlice); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (i *items) SetSchema(v map[string]json.RawMessage) error {
+	i.additionalAllowed = true
+	value, ok := v["additionalItems"]
+	if !ok {
+		return nil
+	}
+	json.Unmarshal(value, &i.additionalAllowed)
+	json.Unmarshal(value, &i.additionalItems)
+	return nil
+}
+
 func (i items) Validate(v interface{}) []ValidationError {
 	var valErrs []ValidationError
 	instances, ok := v.([]interface{})
@@ -70,26 +92,4 @@ func (i items) Validate(v interface{}) []ValidationError {
 		}
 	}
 	return valErrs
-}
-
-func (i *items) SetSchema(v map[string]json.RawMessage) error {
-	i.additionalAllowed = true
-	value, ok := v["additionalItems"]
-	if !ok {
-		return nil
-	}
-	json.Unmarshal(value, &i.additionalAllowed)
-	json.Unmarshal(value, &i.additionalItems)
-	return nil
-}
-
-func (i *items) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &i.schema); err == nil {
-		return nil
-	}
-	i.schema = nil
-	if err := json.Unmarshal(b, &i.schemaSlice); err != nil {
-		return err
-	}
-	return nil
 }

@@ -11,6 +11,40 @@ type maximum struct {
 	exclusive bool
 }
 
+func (m maximum) isLargerThanInt(n int64) (bool, error) {
+	if !strings.Contains(m.String(), ".") {
+		max, err := m.Int64()
+		if err != nil {
+			return false, err
+		}
+		return max > n || !m.exclusive && max == n, nil
+	} else {
+		return m.isLargerThanFloat(float64(n))
+	}
+}
+
+func (m maximum) isLargerThanFloat(n float64) (isLarger bool, err error) {
+	max, err := m.Float64()
+	if err != nil {
+		return
+	}
+	return max > n || !m.exclusive && max == n, nil
+}
+
+func (m *maximum) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &m.Number)
+}
+
+func (m *maximum) SetSchema(v map[string]json.RawMessage) error {
+	value, ok := v["exclusiveMaximum"]
+	if ok {
+		// Ignore errors from Unmarshal. If exclusiveMaximum is a non boolean JSON
+		// value we leave it as false.
+		json.Unmarshal(value, &m.exclusive)
+	}
+	return nil
+}
+
 func (m maximum) Validate(v interface{}) []ValidationError {
 	normalized, err := normalizeNumber(v)
 	if err != nil {
@@ -35,43 +69,43 @@ func (m maximum) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
-func (m maximum) isLargerThanInt(n int64) (bool, error) {
+type minimum struct {
+	json.Number
+	exclusive bool
+}
+
+func (m minimum) isLargerThanInt(n int64) (bool, error) {
 	if !strings.Contains(m.String(), ".") {
-		max, err := m.Int64()
+		min, err := m.Int64()
 		if err != nil {
-			return false, err
+			return false, nil
 		}
-		return max > n || !m.exclusive && max == n, nil
+		return min > n || !m.exclusive && min == n, nil
 	} else {
 		return m.isLargerThanFloat(float64(n))
 	}
 }
 
-func (m maximum) isLargerThanFloat(n float64) (isLarger bool, err error) {
-	max, err := m.Float64()
+func (m minimum) isLargerThanFloat(n float64) (isLarger bool, err error) {
+	min, err := m.Float64()
 	if err != nil {
 		return
 	}
-	return max > n || !m.exclusive && max == n, nil
+	return min > n || !m.exclusive && min == n, nil
 }
 
-func (m *maximum) SetSchema(v map[string]json.RawMessage) error {
-	value, ok := v["exclusiveMaximum"]
+func (m *minimum) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &m.Number)
+}
+
+func (m *minimum) SetSchema(v map[string]json.RawMessage) error {
+	value, ok := v["exclusiveminimum"]
 	if ok {
-		// Ignore errors from Unmarshal. If exclusiveMaximum is a non boolean JSON
+		// Ignore errors from Unmarshal. If exclusiveminimum is a non boolean JSON
 		// value we leave it as false.
 		json.Unmarshal(value, &m.exclusive)
 	}
 	return nil
-}
-
-func (m *maximum) UnmarshalJSON(b []byte) error {
-	return json.Unmarshal(b, &m.Number)
-}
-
-type minimum struct {
-	json.Number
-	exclusive bool
 }
 
 func (m minimum) Validate(v interface{}) []ValidationError {
@@ -98,41 +132,16 @@ func (m minimum) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
-func (m minimum) isLargerThanInt(n int64) (bool, error) {
-	if !strings.Contains(m.String(), ".") {
-		min, err := m.Int64()
-		if err != nil {
-			return false, nil
-		}
-		return min > n || !m.exclusive && min == n, nil
-	} else {
-		return m.isLargerThanFloat(float64(n))
-	}
-}
+type multipleOf int64
 
-func (m minimum) isLargerThanFloat(n float64) (isLarger bool, err error) {
-	min, err := m.Float64()
-	if err != nil {
-		return
+func (m *multipleOf) UnmarshalJSON(b []byte) error {
+	var n int64
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
 	}
-	return min > n || !m.exclusive && min == n, nil
-}
-
-func (m *minimum) SetSchema(v map[string]json.RawMessage) error {
-	value, ok := v["exclusiveminimum"]
-	if ok {
-		// Ignore errors from Unmarshal. If exclusiveminimum is a non boolean JSON
-		// value we leave it as false.
-		json.Unmarshal(value, &m.exclusive)
-	}
+	*m = multipleOf(n)
 	return nil
 }
-
-func (m *minimum) UnmarshalJSON(b []byte) error {
-	return json.Unmarshal(b, &m.Number)
-}
-
-type multipleOf int64
 
 // Contrary to the spec, validation doesn't support floats in the schema
 // or the data being validated. This is because of issues with math.Mod,
@@ -150,14 +159,5 @@ func (m multipleOf) Validate(v interface{}) []ValidationError {
 		mulErr := ValidationError{fmt.Sprintf("Value must be a multiple of %d.", m)}
 		return []ValidationError{mulErr}
 	}
-	return nil
-}
-
-func (m *multipleOf) UnmarshalJSON(b []byte) error {
-	var n int64
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	*m = multipleOf(n)
 	return nil
 }
