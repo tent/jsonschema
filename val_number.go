@@ -126,7 +126,7 @@ func (m minimum) Validate(v interface{}) []ValidationError {
 		return nil
 	}
 	if isLarger {
-		minErr := fmt.Sprintf("Value must be smaller than %s.", m)
+		minErr := fmt.Sprintf("Value must be larger than %s.", m)
 		return []ValidationError{ValidationError{minErr}}
 	}
 	return nil
