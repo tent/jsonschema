@@ -4,12 +4,38 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
+
+// A dummy schema used if we don't recognize a schema key. We unmarshal the key's contents anyway
+// because it might contain embedded schemas referenced elsewhere in the document.
+//
+// Does this work with additionalProperties??
+//
+// TODO: should probably be interface{} and handle lists, dicts of schemas
+// as well as single schemas.
+type other struct {
+	EmbeddedSchemas map[string]*Schema
+}
+
+func (o other) Validate(v interface{}) []ValidationError {
+	return nil
+}
+
+func (o *other) UnmarshalJSON(b []byte) error {
+	var s Schema
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	o.EmbeddedSchemas[""] = &s
+	return nil
+}
 
 type maximum struct {
 	json.Number
@@ -97,7 +123,7 @@ func (m minimum) Validate(v interface{}) []ValidationError {
 		return nil
 	}
 	if isLarger {
-		minErr := fmt.Sprintf("Value must be smaller than %s.", m)
+		minErr := fmt.Sprintf("Value must be larger than %s.", m)
 		return []ValidationError{ValidationError{minErr}}
 	}
 	return nil
@@ -271,6 +297,23 @@ func (f format) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
+type additionalItems struct {
+	EmbeddedSchemas map[string]*Schema
+}
+
+func (a additionalItems) Validate(v interface{}) []ValidationError {
+	return nil
+}
+
+func (a *additionalItems) UnmarshalJSON(b []byte) error {
+	var s Schema
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	a.EmbeddedSchemas[""] = &s
+	return nil
+}
+
 type maxItems int
 
 func (m maxItems) Validate(v interface{}) []ValidationError {
@@ -304,6 +347,7 @@ func (m minItems) Validate(v interface{}) []ValidationError {
 // [0] http://json-schema.org/latest/json-schema-validation.html#anchor37
 // [1] http://spacetelescope.github.io/understanding-json-schema/reference/array.html
 type items struct {
+	EmbeddedSchemas   map[string]*Schema
 	schema            *Schema
 	schemaSlice       []*Schema
 	additionalAllowed bool
@@ -339,30 +383,52 @@ func (i items) Validate(v interface{}) []ValidationError {
 }
 
 func (i *items) SetSchema(v map[string]json.RawMessage) error {
+	//TODO: ian should fix.
 	i.additionalAllowed = true
 	value, ok := v["additionalItems"]
 	if !ok {
 		return nil
 	}
 	json.Unmarshal(value, &i.additionalAllowed)
-	json.Unmarshal(value, &i.additionalItems)
+	// json.Unmarshal(value, &i.additionalItems)
 	return nil
 }
 
+func (i *items) GetNeighboringSchemas(nodes map[string]*Node) {
+	n, ok := nodes["additionalItems"]
+	if !ok {
+		return
+	}
+	s, ok := n.EmbeddedSchemas[""]
+	if !ok {
+		return
+	}
+	i.additionalItems = s
+}
+
 func (i *items) UnmarshalJSON(b []byte) error {
+
+	// If "items" is a single schema, stop here.
 	if err := json.Unmarshal(b, &i.schema); err == nil {
+		i.EmbeddedSchemas[""] = i.schema
 		return nil
 	}
 	i.schema = nil
+
+	// The only other valid option is a list of schemas.
 	if err := json.Unmarshal(b, &i.schemaSlice); err != nil {
+		i.schemaSlice = nil
 		return err
+	}
+	for index, v := range i.schemaSlice {
+		i.EmbeddedSchemas[strconv.Itoa(index)] = v
 	}
 	return nil
 }
 
 type dependencies struct {
-	schemaDeps   map[string]Schema
-	propertyDeps map[string]propertySet
+	EmbeddedSchemas map[string]*Schema
+	propertyDeps    map[string]propertySet
 }
 
 type propertySet map[string]struct{}
@@ -375,7 +441,7 @@ func (d dependencies) Validate(v interface{}) []ValidationError {
 	}
 
 	// Handle schema dependencies.
-	for key, schema := range d.schemaDeps {
+	for key, schema := range d.EmbeddedSchemas {
 		if _, ok := val[key]; !ok {
 			continue
 		}
@@ -404,13 +470,13 @@ func (d *dependencies) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	d.schemaDeps = make(map[string]Schema, len(c))
+	// d.schemaDeps = make(map[string]Schema, len(c))
 	for k, v := range c {
 		var s Schema
 		if err := json.Unmarshal(v, &s); err != nil {
 			continue
 		}
-		d.schemaDeps[k] = s
+		d.EmbeddedSchemas[k] = &s
 	}
 
 	d.propertyDeps = make(map[string]propertySet, len(c))
@@ -426,9 +492,40 @@ func (d *dependencies) UnmarshalJSON(b []byte) error {
 		d.propertyDeps[k] = set
 	}
 
-	if len(d.propertyDeps) == 0 && len(d.schemaDeps) == 0 {
+	if len(d.propertyDeps) == 0 && len(d.EmbeddedSchemas) == 0 {
 		return errors.New("no valid schema or property dependency validators")
 	}
+	return nil
+}
+
+// TODO: just covers schemas, not bools.
+type additionalProperties struct {
+	EmbeddedSchemas      map[string]*Schema
+	propertiesIsNeighbor bool
+}
+
+func (a additionalProperties) Validate(v interface{}) []ValidationError {
+	// In this case validation will be handled by the "properties" validator.
+	if a.propertiesIsNeighbor == true {
+		return nil
+	}
+	var valErrs []ValidationError
+	dataMap, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	for _, dataVal := range dataMap {
+		valErrs = append(valErrs, a.EmbeddedSchemas[""].Validate(dataVal)...)
+	}
+	return valErrs
+}
+
+func (a *additionalProperties) UnmarshalJSON(b []byte) error {
+	var s Schema
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	a.EmbeddedSchemas[""] = &s
 	return nil
 }
 
@@ -442,6 +539,13 @@ func (m maxProperties) Validate(v interface{}) []ValidationError {
 	if len(val) > int(m) {
 		return []ValidationError{ValidationError{
 			fmt.Sprintf("Object has more properties than maxProperties (%d > %d)", len(val), m)}}
+	}
+	return nil
+}
+
+func (p *additionalProperties) SetSchema(v map[string]json.RawMessage) error {
+	if _, ok := v["properties"]; ok {
+		p.propertiesIsNeighbor = true
 	}
 	return nil
 }
@@ -485,24 +589,27 @@ func (m *minProperties) UnmarshalJSON(b []byte) error {
 }
 
 type patternProperties struct {
-	object []regexpToSchema
-}
-
-type regexpToSchema struct {
-	regexp regexp.Regexp
-	schema Schema
+	EmbeddedSchemas map[string]*Schema
+	// TODO: find a better name for object.
+	object               map[string]regexp.Regexp
+	propertiesIsNeighbor bool
 }
 
 func (p patternProperties) Validate(v interface{}) []ValidationError {
+	// In this case validation will be handled by the "properties" validator.
+	if p.propertiesIsNeighbor == true {
+		return nil
+	}
+
 	var valErrs []ValidationError
 	data, ok := v.(map[string]interface{})
 	if !ok {
 		return nil
 	}
 	for dataKey, dataVal := range data {
-		for _, val := range p.object {
-			if val.regexp.MatchString(dataKey) {
-				valErrs = append(valErrs, val.schema.Validate(dataVal)...)
+		for key, val := range p.object {
+			if val.MatchString(dataKey) {
+				valErrs = append(valErrs, p.EmbeddedSchemas[key].Validate(dataVal)...)
 			}
 		}
 	}
@@ -511,28 +618,30 @@ func (p patternProperties) Validate(v interface{}) []ValidationError {
 
 func (p *patternProperties) SetSchema(v map[string]json.RawMessage) error {
 	if _, ok := v["properties"]; ok {
-		return errors.New("superseded by 'properties' neighbor")
+		p.propertiesIsNeighbor = true
 	}
 	return nil
 }
 
 func (p *patternProperties) UnmarshalJSON(b []byte) error {
-	var m map[string]Schema
+	m := make(map[string]*Schema)
 	if err := json.Unmarshal(b, &m); err != nil {
 		return err
 	}
-	for key, val := range m {
-		r, err := regexp.Compile(key)
+	p.object = make(map[string]regexp.Regexp, len(m))
+	for k, v := range m {
+		r, err := regexp.Compile(k)
 		if err != nil {
 			return err
 		}
-		p.object = append(p.object, regexpToSchema{*r, val})
+		p.EmbeddedSchemas[k] = v
+		p.object[k] = *r
 	}
 	return nil
 }
 
 type properties struct {
-	object                     map[string]Schema
+	EmbeddedSchemas            map[string]*Schema
 	patternProperties          *patternProperties
 	additionalPropertiesBool   bool
 	additionalPropertiesObject *Schema
@@ -546,15 +655,15 @@ func (p properties) Validate(v interface{}) []ValidationError {
 	}
 	for dataKey, dataVal := range dataMap {
 		var match = false
-		schema, ok := p.object[dataKey]
+		schema, ok := p.EmbeddedSchemas[dataKey]
 		if ok {
 			valErrs = append(valErrs, schema.Validate(dataVal)...)
 			match = true
 		}
 		if p.patternProperties != nil {
-			for _, val := range p.patternProperties.object {
-				if val.regexp.MatchString(dataKey) {
-					valErrs = append(valErrs, val.schema.Validate(dataVal)...)
+			for key, val := range p.patternProperties.object {
+				if val.MatchString(dataKey) {
+					valErrs = append(valErrs, p.patternProperties.EmbeddedSchemas[key].Validate(dataVal)...)
 					match = true
 				}
 			}
@@ -574,15 +683,23 @@ func (p properties) Validate(v interface{}) []ValidationError {
 }
 
 func (p *properties) UnmarshalJSON(b []byte) error {
-	return json.Unmarshal(b, &p.object)
+	return json.Unmarshal(b, &p.EmbeddedSchemas)
+}
+
+func (p *properties) GetNeighboringSchemas(nodes map[string]*Node) {
+	v, ok := nodes["patternProperties"]
+	if !ok {
+		return
+	}
+	v2, ok := v.Validator.(*patternProperties)
+	if !ok {
+		return
+	}
+	p.patternProperties = v2
 }
 
 func (p *properties) SetSchema(v map[string]json.RawMessage) error {
 	p.additionalPropertiesBool = true
-	val, ok := v["patternProperties"]
-	if ok {
-		json.Unmarshal(val, &p.patternProperties)
-	}
 	addVal, ok := v["additionalProperties"]
 	if !ok {
 		return nil
@@ -590,7 +707,10 @@ func (p *properties) SetSchema(v map[string]json.RawMessage) error {
 	json.Unmarshal(addVal, &p.additionalPropertiesBool)
 	if err := json.Unmarshal(addVal, &p.additionalPropertiesObject); err != nil {
 		p.additionalPropertiesObject = nil
+		return err
 	}
+	// TODO: this is wrong.
+	p.EmbeddedSchemas[""] = p.additionalPropertiesObject
 	return nil
 }
 
@@ -622,25 +742,63 @@ func (r *required) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type allOf []Schema
+type allOf struct {
+	EmbeddedSchemas map[string]*Schema
+}
 
 func (a allOf) Validate(v interface{}) (valErrs []ValidationError) {
-	for _, schema := range a {
+	for _, schema := range a.EmbeddedSchemas {
 		valErrs = append(valErrs, schema.Validate(v)...)
 	}
 	return
 }
 
-type anyOf []Schema
+func (a *allOf) UnmarshalJSON(b []byte) error {
+	var schemas []*Schema
+	if err := json.Unmarshal(b, &schemas); err != nil {
+		return err
+	}
+	for i, v := range schemas {
+		a.EmbeddedSchemas[strconv.Itoa(i)] = v
+	}
+	return nil
+}
+
+type anyOf struct {
+	EmbeddedSchemas map[string]*Schema
+}
 
 func (a anyOf) Validate(v interface{}) []ValidationError {
-	for _, schema := range a {
+	for _, schema := range a.EmbeddedSchemas {
 		if schema.Validate(v) == nil {
 			return nil
 		}
 	}
 	return []ValidationError{
 		ValidationError{"Validation failed for each schema in 'anyOf'."}}
+}
+
+func (a *anyOf) UnmarshalJSON(b []byte) error {
+	var schemas []*Schema
+	if err := json.Unmarshal(b, &schemas); err != nil {
+		return err
+	}
+	for i, v := range schemas {
+		a.EmbeddedSchemas[strconv.Itoa(i)] = v
+	}
+	return nil
+}
+
+type definitions struct {
+	EmbeddedSchemas map[string]*Schema
+}
+
+func (d definitions) Validate(v interface{}) []ValidationError {
+	return nil
+}
+
+func (d *definitions) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &d.EmbeddedSchemas)
 }
 
 type enum []interface{}
@@ -656,22 +814,34 @@ func (a enum) Validate(v interface{}) []ValidationError {
 }
 
 type not struct {
-	Schema
+	EmbeddedSchemas map[string]*Schema
 }
 
 func (n not) Validate(v interface{}) []ValidationError {
-	schema := Schema{n.vals}
+	// TODO: error handling.
+	schema := n.EmbeddedSchemas[""]
 	if schema.Validate(v) == nil {
 		return []ValidationError{ValidationError{"The 'not' schema didn't raise an error."}}
 	}
 	return nil
 }
 
-type oneOf []Schema
+func (n *not) UnmarshalJSON(b []byte) error {
+	var s Schema
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	n.EmbeddedSchemas[""] = &s
+	return nil
+}
 
-func (a oneOf) Validate(v interface{}) []ValidationError {
+type oneOf struct {
+	EmbeddedSchemas map[string]*Schema
+}
+
+func (o oneOf) Validate(v interface{}) []ValidationError {
 	var succeeded int
-	for _, schema := range a {
+	for _, schema := range o.EmbeddedSchemas {
 		if schema.Validate(v) == nil {
 			succeeded++
 		}
@@ -680,6 +850,25 @@ func (a oneOf) Validate(v interface{}) []ValidationError {
 		return []ValidationError{ValidationError{
 			fmt.Sprintf("Validation passed for %d schemas in 'oneOf'.", succeeded)}}
 	}
+	return nil
+}
+
+func (o *oneOf) UnmarshalJSON(b []byte) error {
+	var schemas []*Schema
+	if err := json.Unmarshal(b, &schemas); err != nil {
+		return err
+	}
+	for i, v := range schemas {
+		o.EmbeddedSchemas[strconv.Itoa(i)] = v
+	}
+	return nil
+}
+
+type ref string
+
+func (r ref) Validate(v interface{}) []ValidationError {
+	log.Println("Running ref.Validate")
+	log.Println(r)
 	return nil
 }
 
