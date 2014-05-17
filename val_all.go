@@ -44,8 +44,7 @@ type not struct {
 }
 
 func (n not) Validate(v interface{}) []ValidationError {
-	schema := Schema{n.vals}
-	if schema.Validate(v) == nil {
+	if n.Schema.Validate(v) == nil {
 		return []ValidationError{ValidationError{"The 'not' schema didn't raise an error."}}
 	}
 	return nil

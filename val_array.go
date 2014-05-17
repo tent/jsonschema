@@ -5,6 +5,27 @@ import (
 	"fmt"
 )
 
+type additionalItems struct {
+	isTrue bool
+	sch    *Schema
+}
+
+func (a *additionalItems) UnmarshalJSON(b []byte) error {
+	a.isTrue = true
+	if err := json.Unmarshal(b, &a.isTrue); err == nil {
+		return nil
+	}
+	if err := json.Unmarshal(b, &a.sch); err != nil {
+		a.sch = nil
+		return err
+	}
+	return nil
+}
+
+func (a additionalItems) Validate(v interface{}) []ValidationError {
+	return nil
+}
+
 type maxItems int
 
 func (m maxItems) Validate(v interface{}) []ValidationError {
@@ -45,6 +66,7 @@ type items struct {
 }
 
 func (i *items) UnmarshalJSON(b []byte) error {
+	i.additionalAllowed = true
 	if err := json.Unmarshal(b, &i.schema); err == nil {
 		return nil
 	}
@@ -55,15 +77,18 @@ func (i *items) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (i *items) SetSchema(v map[string]json.RawMessage) error {
-	i.additionalAllowed = true
-	value, ok := v["additionalItems"]
+func (i *items) CheckNeighbors(m map[string]Node) {
+	v, ok := m["additionalItems"]
 	if !ok {
-		return nil
+		return
 	}
-	json.Unmarshal(value, &i.additionalAllowed)
-	json.Unmarshal(value, &i.additionalItems)
-	return nil
+	a, ok := v.Validator.(*additionalItems)
+	if !ok {
+		return
+	}
+	i.additionalAllowed = a.isTrue
+	i.additionalItems = a.sch
+	return
 }
 
 func (i items) Validate(v interface{}) []ValidationError {

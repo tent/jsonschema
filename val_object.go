@@ -7,6 +7,52 @@ import (
 	"regexp"
 )
 
+type additionalProperties struct {
+	isTrue               bool
+	sch                  *Schema
+	propertiesIsNeighbor bool
+}
+
+func (a *additionalProperties) UnmarshalJSON(b []byte) error {
+	a.isTrue = true
+	if err := json.Unmarshal(b, &a.isTrue); err == nil {
+		return nil
+	}
+	if err := json.Unmarshal(b, &a.sch); err != nil {
+		a.sch = nil
+		return err
+	}
+	return nil
+}
+
+func (a *additionalProperties) CheckNeighbors(m map[string]Node) {
+	v, ok := m["properties"]
+	if !ok {
+		return
+	}
+	if _, ok := v.Validator.(*properties); !ok {
+		return
+	}
+	a.propertiesIsNeighbor = true
+	return
+}
+
+func (a additionalProperties) Validate(v interface{}) []ValidationError {
+	// In this case validation will be handled by the "properties" validator.
+	if a.propertiesIsNeighbor {
+		return nil
+	}
+	var valErrs []ValidationError
+	dataMap, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	for _, dataVal := range dataMap {
+		valErrs = append(valErrs, a.sch.Validate(dataVal)...)
+	}
+	return valErrs
+}
+
 type dependencies struct {
 	schemaDeps   map[string]Schema
 	propertyDeps map[string]propertySet
@@ -132,7 +178,8 @@ func (m minProperties) Validate(v interface{}) []ValidationError {
 }
 
 type patternProperties struct {
-	object []regexpToSchema
+	object   []regexpToSchema
+	disabled bool
 }
 
 type regexpToSchema struct {
@@ -155,14 +202,22 @@ func (p *patternProperties) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (p *patternProperties) SetSchema(v map[string]json.RawMessage) error {
-	if _, ok := v["properties"]; ok {
-		return errors.New("superseded by 'properties' neighbor")
+func (p *patternProperties) CheckNeighbors(m map[string]Node) {
+	v, ok := m["properties"]
+	if !ok {
+		return
 	}
-	return nil
+	if _, ok := v.Validator.(*properties); !ok {
+		return
+	}
+	p.disabled = true
+	return
 }
 
 func (p patternProperties) Validate(v interface{}) []ValidationError {
+	if p.disabled {
+		return nil
+	}
 	var valErrs []ValidationError
 	data, ok := v.(map[string]interface{})
 	if !ok {
@@ -186,24 +241,29 @@ type properties struct {
 }
 
 func (p *properties) UnmarshalJSON(b []byte) error {
+	p.additionalPropertiesBool = true
 	return json.Unmarshal(b, &p.object)
 }
 
-func (p *properties) SetSchema(v map[string]json.RawMessage) error {
-	p.additionalPropertiesBool = true
-	val, ok := v["patternProperties"]
+func (p *properties) CheckNeighbors(m map[string]Node) {
+	v, ok := m["patternProperties"]
 	if ok {
-		json.Unmarshal(val, &p.patternProperties)
+		pat, ok := v.Validator.(*patternProperties)
+		if ok {
+			p.patternProperties = &patternProperties{pat.object, false}
+		}
 	}
-	addVal, ok := v["additionalProperties"]
+	v, ok = m["additionalProperties"]
 	if !ok {
-		return nil
+		return
 	}
-	json.Unmarshal(addVal, &p.additionalPropertiesBool)
-	if err := json.Unmarshal(addVal, &p.additionalPropertiesObject); err != nil {
-		p.additionalPropertiesObject = nil
+	a, ok := v.Validator.(*additionalProperties)
+	if !ok {
+		return
 	}
-	return nil
+	p.additionalPropertiesBool = a.isTrue
+	p.additionalPropertiesObject = a.sch
+	return
 }
 
 func (p properties) Validate(v interface{}) []ValidationError {
