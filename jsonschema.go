@@ -7,6 +7,7 @@ import (
 	"reflect"
 )
 
+var LoadExternalSchemas bool
 var validatorMap = map[string]reflect.Type{
 	// Numbers
 	"maximum":    reflect.TypeOf(maximum{}),
@@ -37,9 +38,11 @@ var validatorMap = map[string]reflect.Type{
 	// All types
 	"allOf": reflect.TypeOf(allOf{}),
 	"anyOf": reflect.TypeOf(anyOf{}),
+	// "definitions": covered by the hardcoded `other` validator.
 	"enum":  reflect.TypeOf(enum{}),
 	"not":   reflect.TypeOf(not{}),
 	"oneOf": reflect.TypeOf(oneOf{}),
+	"$ref":  reflect.TypeOf(ref("")),
 	"type":  reflect.TypeOf(typeValidator{})}
 
 type Validator interface {
@@ -47,11 +50,12 @@ type Validator interface {
 }
 
 func Parse(schemaBytes io.Reader) (*Schema, error) {
-	var schema *Schema
-	if err := json.NewDecoder(schemaBytes).Decode(&schema); err != nil {
+	var s *Schema
+	if err := json.NewDecoder(schemaBytes).Decode(&s); err != nil {
 		return nil, err
 	}
-	return schema, nil
+	s.resolveRefs()
+	return s, nil
 }
 
 func (s *Schema) Validate(v interface{}) []ValidationError {
@@ -72,23 +76,28 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 		var n Node
 		if typ, ok := validatorMap[schemaKey]; ok {
 			n.Validator = reflect.New(typ).Interface().(Validator)
-			decoder := json.NewDecoder(bytes.NewReader(schemaValue))
-			decoder.UseNumber()
-			if err := decoder.Decode(n.Validator); err != nil {
-				continue
-			}
-
-			// Make changes to a validator based on its neighbors, if appropriate.
-			//
-			// NOTE: deprecated in favor of NeighborChecker.
-			if v, ok := n.Validator.(SchemaSetter); ok {
-				v.SetSchema(schemaMap)
-			}
-
-			s.nodes[schemaKey] = n
+		} else {
+			// Even if we don't recognize a schema key, we unmarshal its contents anyway
+			// because it might contain embedded schemas referenced elsewhere in the document.
+			n.Validator = new(other)
 		}
+		decoder := json.NewDecoder(bytes.NewReader(schemaValue))
+		decoder.UseNumber()
+		if err := decoder.Decode(n.Validator); err != nil {
+			continue
+		}
+		if v, ok := n.Validator.(SchemaEmbedder); ok {
+			n.EmbeddedSchemas = v.LinkEmbedded()
+		}
+		s.nodes[schemaKey] = n
 	}
 	for _, n := range s.nodes {
+		// Make changes to a validator based on its neighbors, if appropriate.
+		//
+		// NOTE: deprecated in favor of NeighborChecker.
+		if v, ok := n.Validator.(SchemaSetter); ok {
+			v.SetSchema(schemaMap)
+		}
 		if v, ok := n.Validator.(NeighborChecker); ok {
 			v.CheckNeighbors(s.nodes)
 		}
@@ -107,11 +116,13 @@ type SchemaSetter interface {
 }
 
 type Schema struct {
-	nodes map[string]Node
+	nodes    map[string]Node
+	resolved bool
 }
 
 type Node struct {
-	Validator Validator
+	EmbeddedSchemas
+	Validator
 }
 
 type NeighborChecker interface {

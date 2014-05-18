@@ -5,3 +5,5 @@
 # Test
 
     go test
+
+Note that tests load external schemas by default.
