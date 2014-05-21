@@ -99,6 +99,9 @@ func (s *Schema) hasRef() (string, bool) {
 	return "", false
 }
 
+// TODO: This is hacky. Look into using a library like gojsonpointer[1] instead.
+//
+// [1] https://github.com/xeipuuv/gojsonpointer
 func refToSchema(str string, rootSchema Schema) (*Schema, error) {
 	var split []string
 	url, err := url.Parse(str)
