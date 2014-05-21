@@ -58,22 +58,22 @@ func (e *EmbeddedSchemas) UnmarshalSingle(b []byte) error {
 // resolveRefs starts a depth-first search through a document for schemas containing
 // the 'ref' validator. It completely resolves each one found.
 func (s *Schema) resolveRefs() {
-	s.resolveItselfAndBelow(*s)
+	s.resolveSelfAndBelow(*s)
 }
 
-func (s *Schema) resolveItselfAndBelow(rootSchema Schema) {
-	s.resolveItself(rootSchema)
+func (s *Schema) resolveSelfAndBelow(rootSchema Schema) {
+	s.resolveSelf(rootSchema)
 	s.resolveBelow(rootSchema)
 }
 
-func (s *Schema) resolveItself(rootSchema Schema) {
+func (s *Schema) resolveSelf(rootSchema Schema) {
 	if str, ok := s.hasRef(); ok {
 		sch, err := refToSchema(str, rootSchema)
 		if err != nil {
 			return
 		}
 		*s = *sch
-		s.resolveItself(rootSchema)
+		s.resolveSelf(rootSchema)
 	}
 }
 
@@ -85,7 +85,7 @@ func (s *Schema) resolveBelow(rootSchema Schema) {
 	s.resolved = true
 	for _, n := range s.nodes {
 		for _, sch := range n.EmbeddedSchemas {
-			sch.resolveItselfAndBelow(rootSchema)
+			sch.resolveSelfAndBelow(rootSchema)
 		}
 	}
 }
@@ -103,9 +103,7 @@ func refToSchema(str string, rootSchema Schema) (*Schema, error) {
 	var split []string
 	url, err := url.Parse(str)
 	if err == nil && url.IsAbs() {
-
 		// Handle external URIs.
-
 		if !LoadExternalSchemas {
 			return new(Schema), errors.New("external schemas are disabled")
 		}
@@ -114,16 +112,14 @@ func refToSchema(str string, rootSchema Schema) (*Schema, error) {
 			return new(Schema), errors.New("bad external url")
 		}
 		defer resp.Body.Close()
-		rS, err := Parse(resp.Body)
+		s, err := Parse(resp.Body)
 		if err != nil {
 			return new(Schema), errors.New("error parsing external doc")
 		}
 		str = url.Fragment
-		rootSchema = *rS
+		rootSchema = *s
 	} else {
-
 		// Remove the prefix from internal URIs.
-
 		if strings.HasPrefix(str, "#/") {
 			str = str[2:len(str)]
 		} else if strings.HasPrefix(str, "#") {
@@ -131,23 +127,19 @@ func refToSchema(str string, rootSchema Schema) (*Schema, error) {
 		}
 	}
 	split = strings.Split(str, "/")
-
 	// Make replacements.
-
 	for i, v := range split {
 		r := strings.NewReplacer("~0", "~", "~1", "/", "%25", "%")
 		split[i] = r.Replace(v)
 	}
-
 	// Resolve the local part of the URI.
-
 	return resolveLocalPath(split, rootSchema, str)
 }
 
 // TODO: add code and tests for references more than one level deep.
 func resolveLocalPath(split []string, rootSchema Schema, str string) (*Schema, error) {
-	switch {
-	case len(split) == 1:
+	switch len(split) {
+	case 1:
 		if split[0] == "" {
 			return &rootSchema, nil
 		}
@@ -155,18 +147,16 @@ func resolveLocalPath(split []string, rootSchema Schema, str string) (*Schema, e
 		if ok == false {
 			break
 		}
-		s2, ok := v.EmbeddedSchemas[""]
-		if ok {
-			return s2, nil
+		if s, ok := v.EmbeddedSchemas[""]; ok {
+			return s, nil
 		}
-	case len(split) == 2:
+	case 2:
 		v, ok := rootSchema.nodes[split[0]]
 		if ok == false {
 			break
 		}
-		s2, ok := v.EmbeddedSchemas[split[1]]
-		if ok {
-			return s2, nil
+		if s, ok := v.EmbeddedSchemas[split[1]]; ok {
+			return s, nil
 		}
 	}
 	return new(Schema), fmt.Errorf("failed to resolve %s", str)
