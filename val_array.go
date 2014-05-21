@@ -51,10 +51,10 @@ func (m minItems) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
-// The spec[0] is useless for this keyword. The implemention here is based on the tests and this[1] guide.
+// The spec[1] is useless for this keyword. The implemention here is based on the tests and this[2] guide.
 //
-// [0] http://json-schema.org/latest/json-schema-validation.html#anchor37
-// [1] http://spacetelescope.github.io/understanding-json-schema/reference/array.html
+// [1] http://json-schema.org/latest/json-schema-validation.html#anchor37
+// [2] http://spacetelescope.github.io/understanding-json-schema/reference/array.html
 type items struct {
 	EmbeddedSchemas
 	schemaSlice       []*Schema
