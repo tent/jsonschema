@@ -91,10 +91,8 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 		}
 		s.nodes[schemaKey] = n
 	}
+	// Make changes to a validator based on its neighbors, if appropriate.
 	for _, n := range s.nodes {
-		// Make changes to a validator based on its neighbors, if appropriate.
-		//
-		// NOTE: deprecated in favor of NeighborChecker.
 		if v, ok := n.Validator.(SchemaSetter); ok {
 			v.SetSchema(schemaMap)
 		}
@@ -110,7 +108,7 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 // unmarshaled from JSON, SetSchema is called on its neighbors to see if any of
 // them are relevant to the validator being unmarshaled.
 //
-// NOTE: deprecated in favor of NeighborChecker.
+// TODO: should this be deprecated in favor of NeighborChecker?
 type SchemaSetter interface {
 	SetSchema(map[string]json.RawMessage) error
 }
@@ -125,6 +123,20 @@ type Node struct {
 	Validator
 }
 
+// A NeighborChecker is a validator (such as items) whose validate method depends
+// on neighboring schema keys (such as additionalItems). Unlike SchemaSetters
+// which unmarshal the neighboring key's value a second time, NeighborCheckers are
+// directly linked to the neighboring node.
+//
+// This has the disadvantage that the neighbor must be an actual validator. If
+// maximum was converted to a NeighborChecker, an exclusiveMaximum validator would
+// have to be created even though its validate method would never return anything
+// other than nil.
+//
+// It has an advantage over SchemaSetter that if resolveRefs changes the value of
+// an embedded schema in the neighboring node, the NeighborChecker gets access to the
+// new value. For this reason validators that depend on neighboring schemas that can
+// have embedded subschemas must be NeighborCheckers, not SchemaSetters.
 type NeighborChecker interface {
 	CheckNeighbors(map[string]Node)
 }
