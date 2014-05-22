@@ -57,35 +57,35 @@ func (e *EmbeddedSchemas) UnmarshalSingle(b []byte) error {
 
 // resolveRefs starts a depth-first search through a document for schemas containing
 // the 'ref' validator. It completely resolves each one found.
-func (s *Schema) resolveRefs() {
-	s.resolveSelfAndBelow(*s)
+func (s *Schema) resolveRefs(loadExternal bool) {
+	s.resolveSelfAndBelow(*s, loadExternal)
 }
 
-func (s *Schema) resolveSelfAndBelow(rootSchema Schema) {
-	s.resolveSelf(rootSchema)
-	s.resolveBelow(rootSchema)
+func (s *Schema) resolveSelfAndBelow(rootSchema Schema, loadExternal bool) {
+	s.resolveSelf(rootSchema, loadExternal)
+	s.resolveBelow(rootSchema, loadExternal)
 }
 
-func (s *Schema) resolveSelf(rootSchema Schema) {
+func (s *Schema) resolveSelf(rootSchema Schema, loadExternal bool) {
 	if str, ok := s.hasRef(); ok {
-		sch, err := refToSchema(str, rootSchema)
+		sch, err := refToSchema(str, rootSchema, loadExternal)
 		if err != nil {
 			return
 		}
 		*s = *sch
-		s.resolveSelf(rootSchema)
+		s.resolveSelf(rootSchema, loadExternal)
 	}
 }
 
 // TODO: test that we fail gracefully if the schema contains infinitely looping "$ref"s.
-func (s *Schema) resolveBelow(rootSchema Schema) {
+func (s *Schema) resolveBelow(rootSchema Schema, loadExternal bool) {
 	if s.resolved == true {
 		return
 	}
 	s.resolved = true
 	for _, n := range s.nodes {
 		for _, sch := range n.EmbeddedSchemas {
-			sch.resolveSelfAndBelow(rootSchema)
+			sch.resolveSelfAndBelow(rootSchema, loadExternal)
 		}
 	}
 }
@@ -102,12 +102,12 @@ func (s *Schema) hasRef() (string, bool) {
 // TODO: This is hacky. Look into using a library like gojsonpointer[1] instead.
 //
 // [1] https://github.com/xeipuuv/gojsonpointer
-func refToSchema(str string, rootSchema Schema) (*Schema, error) {
+func refToSchema(str string, rootSchema Schema, loadExternal bool) (*Schema, error) {
 	var split []string
 	url, err := url.Parse(str)
 	if err == nil && url.IsAbs() {
 		// Handle external URIs.
-		if !LoadExternalSchemas {
+		if !loadExternal {
 			return new(Schema), errors.New("external schemas are disabled")
 		}
 		resp, err := http.Get(str)
@@ -115,7 +115,7 @@ func refToSchema(str string, rootSchema Schema) (*Schema, error) {
 			return new(Schema), errors.New("bad external url")
 		}
 		defer resp.Body.Close()
-		s, err := Parse(resp.Body)
+		s, err := Parse(resp.Body, loadExternal)
 		if err != nil {
 			return new(Schema), errors.New("error parsing external doc")
 		}

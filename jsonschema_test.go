@@ -13,7 +13,6 @@ import (
 var notSupported = map[string]struct{}{"uniqueItems.json": struct{}{}}
 
 func TestDraft4(t *testing.T) {
-	LoadExternalSchemas = true
 	testResources := filepath.Join("JSON-Schema-Test-Suite", "tests", "draft4")
 	if _, err := os.Stat(testResources); err != nil {
 		t.Error("Test suite missing. Run `git submodule update --init` to download it.")
@@ -49,7 +48,7 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 		}
 
 		for _, cse := range testFile {
-			schema, err := Parse(bytes.NewReader(cse.Schema))
+			schema, err := Parse(bytes.NewReader(cse.Schema), true)
 			if err != nil {
 				return err
 			}

@@ -7,7 +7,6 @@ import (
 	"reflect"
 )
 
-var LoadExternalSchemas bool
 var validatorMap = map[string]reflect.Type{
 	// Numbers
 	"maximum":    reflect.TypeOf(maximum{}),
@@ -49,12 +48,12 @@ type Validator interface {
 	Validate(interface{}) []ValidationError
 }
 
-func Parse(schemaBytes io.Reader) (*Schema, error) {
+func Parse(schemaBytes io.Reader, loadExternalSchemas bool) (*Schema, error) {
 	var s *Schema
 	if err := json.NewDecoder(schemaBytes).Decode(&s); err != nil {
 		return nil, err
 	}
-	s.resolveRefs()
+	s.resolveRefs(loadExternalSchemas)
 	return s, nil
 }
 
