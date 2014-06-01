@@ -3,7 +3,25 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
+
+type additionalItems struct {
+	EmbeddedSchemas
+	isTrue bool
+}
+
+func (a *additionalItems) UnmarshalJSON(b []byte) error {
+	a.isTrue = true
+	if err := json.Unmarshal(b, &a.isTrue); err == nil {
+		return nil
+	}
+	return json.Unmarshal(b, &a.EmbeddedSchemas)
+}
+
+func (a additionalItems) Validate(v interface{}) []ValidationError {
+	return nil
+}
 
 type maxItems int
 
@@ -33,37 +51,46 @@ func (m minItems) Validate(v interface{}) []ValidationError {
 	return nil
 }
 
-// The spec[0] is useless for this keyword. The implemention here is based on the tests and this[1] guide.
+// The spec[1] is useless for this keyword. The implemention here is based on the tests and this[2] guide.
 //
-// [0] http://json-schema.org/latest/json-schema-validation.html#anchor37
-// [1] http://spacetelescope.github.io/understanding-json-schema/reference/array.html
+// [1] http://json-schema.org/latest/json-schema-validation.html#anchor37
+// [2] http://spacetelescope.github.io/understanding-json-schema/reference/array.html
 type items struct {
-	schema            *Schema
+	EmbeddedSchemas
 	schemaSlice       []*Schema
 	additionalAllowed bool
 	additionalItems   *Schema
 }
 
 func (i *items) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &i.schema); err == nil {
+	i.EmbeddedSchemas = make(EmbeddedSchemas)
+	var s Schema
+	if err := json.Unmarshal(b, &s); err == nil {
+		i.EmbeddedSchemas[""] = &s
 		return nil
 	}
-	i.schema = nil
 	if err := json.Unmarshal(b, &i.schemaSlice); err != nil {
 		return err
+	}
+	for index, v := range i.schemaSlice {
+		i.EmbeddedSchemas[strconv.Itoa(index)] = v
 	}
 	return nil
 }
 
-func (i *items) SetSchema(v map[string]json.RawMessage) error {
+func (i *items) CheckNeighbors(m map[string]Node) {
 	i.additionalAllowed = true
-	value, ok := v["additionalItems"]
+	v, ok := m["additionalItems"]
 	if !ok {
-		return nil
+		return
 	}
-	json.Unmarshal(value, &i.additionalAllowed)
-	json.Unmarshal(value, &i.additionalItems)
-	return nil
+	a, ok := v.Validator.(*additionalItems)
+	if !ok {
+		return
+	}
+	i.additionalAllowed = a.isTrue
+	i.additionalItems = a.EmbeddedSchemas[""]
+	return
 }
 
 func (i items) Validate(v interface{}) []ValidationError {
@@ -72,15 +99,15 @@ func (i items) Validate(v interface{}) []ValidationError {
 	if !ok {
 		return nil
 	}
-	if i.schema != nil {
+	if s, ok := i.EmbeddedSchemas[""]; ok {
 		for _, value := range instances {
-			valErrs = append(valErrs, i.schema.Validate(value)...)
+			valErrs = append(valErrs, s.Validate(value)...)
 		}
-	} else if i.schemaSlice != nil {
+	} else if len(i.schemaSlice) > 0 {
 		for pos, value := range instances {
 			if pos <= len(i.schemaSlice)-1 {
-				schema := i.schemaSlice[pos]
-				valErrs = append(valErrs, schema.Validate(value)...)
+				s := i.schemaSlice[pos]
+				valErrs = append(valErrs, s.Validate(value)...)
 			} else if i.additionalAllowed {
 				if i.additionalItems == nil {
 					continue

@@ -6,20 +6,30 @@ import (
 	"strings"
 )
 
-type allOf []Schema
+type allOf struct {
+	EmbeddedSchemas
+}
 
+// TODO: though it isn't covered by tests, this is isn't right because if the JSON
+// used to create allOf.EmbeddedSchemas is an object or a single schema it will
+// still be unmarshaled into allOf.EmbeddedSchemas. allOf should only recognize an
+// array of schemas, not an object or a single schema.
+//
+// This (and similar validators) need custom UnmarshalJSON methods.
 func (a allOf) Validate(v interface{}) (valErrs []ValidationError) {
-	for _, schema := range a {
-		valErrs = append(valErrs, schema.Validate(v)...)
+	for _, s := range a.EmbeddedSchemas {
+		valErrs = append(valErrs, s.Validate(v)...)
 	}
 	return
 }
 
-type anyOf []Schema
+type anyOf struct {
+	EmbeddedSchemas
+}
 
 func (a anyOf) Validate(v interface{}) []ValidationError {
-	for _, schema := range a {
-		if schema.Validate(v) == nil {
+	for _, s := range a.EmbeddedSchemas {
+		if s.Validate(v) == nil {
 			return nil
 		}
 	}
@@ -40,23 +50,28 @@ func (a enum) Validate(v interface{}) []ValidationError {
 }
 
 type not struct {
-	Schema
+	EmbeddedSchemas
 }
 
 func (n not) Validate(v interface{}) []ValidationError {
-	schema := Schema{n.vals}
-	if schema.Validate(v) == nil {
+	s, ok := n.EmbeddedSchemas[""]
+	if !ok {
+		return nil
+	}
+	if s.Validate(v) == nil {
 		return []ValidationError{ValidationError{"The 'not' schema didn't raise an error."}}
 	}
 	return nil
 }
 
-type oneOf []Schema
+type oneOf struct {
+	EmbeddedSchemas
+}
 
 func (a oneOf) Validate(v interface{}) []ValidationError {
 	var succeeded int
-	for _, schema := range a {
-		if schema.Validate(v) == nil {
+	for _, s := range a.EmbeddedSchemas {
+		if s.Validate(v) == nil {
 			succeeded++
 		}
 	}
@@ -64,6 +79,24 @@ func (a oneOf) Validate(v interface{}) []ValidationError {
 		return []ValidationError{ValidationError{
 			fmt.Sprintf("Validation passed for %d schemas in 'oneOf'.", succeeded)}}
 	}
+	return nil
+}
+
+// A dummy schema used if we don't recognize a schema key. We unmarshal the key's contents anyway
+// because it might contain embedded schemas referenced elsewhere in the document.
+//
+// NOTE: this is the only validator that is hardcoded instead of being listed in validatorMap.
+type other struct {
+	EmbeddedSchemas
+}
+
+func (o other) Validate(v interface{}) []ValidationError {
+	return nil
+}
+
+type ref string
+
+func (r ref) Validate(v interface{}) []ValidationError {
 	return nil
 }
 

@@ -48,11 +48,13 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 		}
 
 		for _, cse := range testFile {
-			schema, err := Parse(bytes.NewReader(cse.Schema))
-			if err != nil {
-				return err
-			}
+			schema, parseErr := Parse(bytes.NewReader(cse.Schema), true)
 			for _, tst := range cse.Tests {
+				if parseErr != nil {
+					t.Error(parseErrMessage(parseErr, path, cse, tst))
+					*failures++
+					continue
+				}
 				var data interface{}
 				decoder := json.NewDecoder(bytes.NewReader(tst.Data))
 				decoder.UseNumber()
@@ -62,9 +64,9 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 				if err != nil {
 					t.Error(failureMessage(err, path, cse, tst, errorList))
 					*failures++
-				} else {
-					*successes++
+					continue
 				}
+				*successes++
 			}
 		}
 		return nil
@@ -98,6 +100,17 @@ func correctValidation(path string, cse testCase, tst testInstance, errorList []
 		return errors.New(failureName)
 	}
 	return nil
+}
+
+func parseErrMessage(err error, path string, cse testCase, tst testInstance) string {
+	return fmt.Sprintf(`error resolving $ref: %s
+file: %s
+test case description: %s
+schema: %s
+test instance description: %s
+test data: %s
+
+`, err.Error(), path, cse.Description, cse.Schema, tst.Description, tst.Data)
 }
 
 func failureMessage(err error, path string, cse testCase, tst testInstance, errorList []ValidationError) string {
