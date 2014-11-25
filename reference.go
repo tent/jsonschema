@@ -121,14 +121,12 @@ func refToSchema(str string, rootSchema Schema, loadExternal bool) (*Schema, err
 		}
 		str = url.Fragment
 		rootSchema = *s
-	} else {
-		// Remove the prefix from internal URIs.
-		if strings.HasPrefix(str, "#/") {
-			str = str[2:len(str)]
-		} else if strings.HasPrefix(str, "#") {
-			str = str[1:len(str)]
-		}
 	}
+
+	// Remove the prefix from internal URIs.
+	str = strings.TrimPrefix(str, "#")
+	str = strings.TrimPrefix(str, "/")
+
 	split = strings.Split(str, "/")
 	// Make replacements.
 	for i, v := range split {
