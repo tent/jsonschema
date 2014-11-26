@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"reflect"
+	"strings"
 )
 
 var validatorMap = map[string]reflect.Type{
@@ -83,6 +84,11 @@ func (s *Schema) UnmarshalJSON(bts []byte) error {
 		decoder := json.NewDecoder(bytes.NewReader(schemaValue))
 		decoder.UseNumber()
 		if err := decoder.Decode(n.Validator); err != nil {
+			if schemaKey == "id" {
+				s.id = string(schemaValue)
+				s.id = strings.TrimPrefix(s.id, "\"")
+				s.id = strings.TrimSuffix(s.id, "\"")
+			}
 			continue
 		}
 		if v, ok := n.Validator.(SchemaEmbedder); ok {
@@ -113,6 +119,8 @@ type SchemaSetter interface {
 }
 
 type Schema struct {
+	id       string
+	parentId string
 	nodes    map[string]Node
 	resolved bool
 }
