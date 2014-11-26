@@ -106,21 +106,28 @@ func refToSchema(str string, rootSchema Schema, loadExternal bool) (*Schema, err
 	var split []string
 	url, err := url.Parse(str)
 	if err == nil && url.IsAbs() {
-		// Handle external URIs.
-		if !loadExternal {
-			return new(Schema), errors.New("external schemas are disabled")
-		}
-		resp, err := http.Get(str)
-		if err != nil {
-			return new(Schema), errors.New("bad external url")
-		}
-		defer resp.Body.Close()
-		s, err := Parse(resp.Body, loadExternal)
-		if err != nil {
-			return new(Schema), errors.New("error parsing external doc")
+		cacheKey := strings.TrimSuffix(str, url.Fragment)
+		cachedSchema, ok := rootSchema.Cache[cacheKey]
+		if ok {
+			rootSchema = *cachedSchema
+		} else {
+			// Handle external URIs.
+			if !loadExternal {
+				return new(Schema), errors.New("external schemas are disabled")
+			}
+			resp, err := http.Get(str)
+			if err != nil {
+				return new(Schema), errors.New("bad external url")
+			}
+			defer resp.Body.Close()
+			s, err := ParseWithCache(resp.Body, loadExternal, &rootSchema.Cache)
+			if err != nil {
+				return new(Schema), errors.New("error parsing external doc")
+			}
+			rootSchema.Cache[cacheKey] = s
+			rootSchema = *s
 		}
 		str = url.Fragment
-		rootSchema = *s
 	}
 
 	// Remove the prefix from internal URIs.

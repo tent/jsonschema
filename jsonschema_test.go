@@ -18,14 +18,15 @@ func TestDraft4(t *testing.T) {
 		t.Error("Test suite missing. Run `git submodule update --init` to download it.")
 	}
 	var failures, successes int
-	err := filepath.Walk(testResources, testFileRunner(t, &failures, &successes))
+	schemaCache := make(map[string]*Schema)
+	err := filepath.Walk(testResources, testFileRunner(t, &failures, &successes, schemaCache))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Logf("%d failed, %d succeeded.", failures, successes)
 }
 
-func testFileRunner(t *testing.T, failures, successes *int) func(string, os.FileInfo, error) error {
+func testFileRunner(t *testing.T, failures, successes *int, schemaCache map[string]*Schema) func(string, os.FileInfo, error) error {
 	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -48,7 +49,7 @@ func testFileRunner(t *testing.T, failures, successes *int) func(string, os.File
 		}
 
 		for _, cse := range testFile {
-			schema, parseErr := Parse(bytes.NewReader(cse.Schema), true)
+			schema, parseErr := ParseWithCache(bytes.NewReader(cse.Schema), true, &schemaCache)
 			for _, tst := range cse.Tests {
 				if parseErr != nil {
 					t.Error(parseErrMessage(parseErr, path, cse, tst))
