@@ -55,9 +55,9 @@ func (e *EmbeddedSchemas) UnmarshalSingle(b []byte) error {
 	return nil
 }
 
-// resolveRefs starts a depth-first search through a document for schemas containing
+// ResolveRefs starts a depth-first search through a document for schemas containing
 // the 'ref' validator. It completely resolves each one found.
-func (s *Schema) resolveRefs(loadExternal bool) {
+func (s *Schema) ResolveRefs(loadExternal bool) {
 	s.resolveSelfAndBelow(*s, *s, loadExternal)
 }
 

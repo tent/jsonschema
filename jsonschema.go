@@ -67,7 +67,7 @@ func (s *Schema) Parse(schemaBytes io.Reader, loadExternalSchemas bool) (*Schema
 	if err := json.NewDecoder(schemaBytes).Decode(&s); err != nil {
 		return nil, err
 	}
-	s.resolveRefs(loadExternalSchemas)
+	s.ResolveRefs(loadExternalSchemas)
 	return s, nil
 }
 
