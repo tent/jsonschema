@@ -49,7 +49,20 @@ type Validator interface {
 }
 
 func Parse(schemaBytes io.Reader, loadExternalSchemas bool) (*Schema, error) {
-	var s *Schema
+	s := &Schema{}
+	return s.Parse(schemaBytes, loadExternalSchemas)
+}
+
+func ParseWithCache(schemaBytes io.Reader, loadExternalSchemas bool, schemaCache *map[string]*Schema) (*Schema, error) {
+	s := &Schema{}
+	s.Cache = *schemaCache
+	return s.Parse(schemaBytes, loadExternalSchemas)
+}
+
+func (s *Schema) Parse(schemaBytes io.Reader, loadExternalSchemas bool) (*Schema, error) {
+	if s.Cache == nil {
+		s.Cache = make(map[string]*Schema)
+	}
 	if err := json.NewDecoder(schemaBytes).Decode(&s); err != nil {
 		return nil, err
 	}
@@ -115,6 +128,7 @@ type SchemaSetter interface {
 type Schema struct {
 	nodes    map[string]Node
 	resolved bool
+	Cache    map[string]*Schema
 }
 
 type Node struct {
