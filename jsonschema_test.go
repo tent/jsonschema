@@ -10,23 +10,28 @@ import (
 	"testing"
 )
 
-var notSupported = map[string]struct{}{"uniqueItems.json": struct{}{}}
+var notSupported = map[string]struct{}{"uniqueItems.json": {}}
 
 func TestDraft4(t *testing.T) {
-	testResources := filepath.Join("JSON-Schema-Test-Suite", "tests", "draft4")
-	if _, err := os.Stat(testResources); err != nil {
-		t.Error("Test suite missing. Run `git submodule update --init` to download it.")
+	suites := []string{
+		filepath.Join("JSON-Schema-Test-Suite", "tests", "draft4"),
+		filepath.Join("tests", "draft4"),
 	}
 	var failures, successes int
 	schemaCache := make(map[string]*Schema)
-	err := filepath.Walk(testResources, testFileRunner(t, &failures, &successes, schemaCache))
-	if err != nil {
-		t.Error(err.Error())
+	for _, testResources := range suites {
+		if _, err := os.Stat(testResources); err != nil {
+			t.Error("Test suite missing. Run `git submodule update --init` to download it.")
+		}
+		err := filepath.Walk(testResources, testFileRunner(t, &failures, &successes, &schemaCache))
+		if err != nil {
+			t.Error(err.Error())
+		}
 	}
 	t.Logf("%d failed, %d succeeded.", failures, successes)
 }
 
-func testFileRunner(t *testing.T, failures, successes *int, schemaCache map[string]*Schema) func(string, os.FileInfo, error) error {
+func testFileRunner(t *testing.T, failures, successes *int, schemaCache *map[string]*Schema) func(string, os.FileInfo, error) error {
 	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -49,7 +54,7 @@ func testFileRunner(t *testing.T, failures, successes *int, schemaCache map[stri
 		}
 
 		for _, cse := range testFile {
-			schema, parseErr := ParseWithCache(bytes.NewReader(cse.Schema), true, &schemaCache)
+			schema, parseErr := ParseWithCache(bytes.NewReader(cse.Schema), true, schemaCache)
 			for _, tst := range cse.Tests {
 				if parseErr != nil {
 					t.Error(parseErrMessage(parseErr, path, cse, tst))

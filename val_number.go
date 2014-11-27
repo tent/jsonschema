@@ -48,7 +48,7 @@ func (m *maximum) SetSchema(v map[string]json.RawMessage) error {
 func (m maximum) Validate(v interface{}) []ValidationError {
 	normalized, err := normalizeNumber(v)
 	if err != nil {
-		return []ValidationError{ValidationError{err.Error()}}
+		return []ValidationError{{err.Error()}}
 	}
 	var isLarger bool
 	switch n := normalized.(type) {
@@ -64,7 +64,7 @@ func (m maximum) Validate(v interface{}) []ValidationError {
 	}
 	if !isLarger {
 		maxErr := fmt.Sprintf("Value must be smaller than %s.", m)
-		return []ValidationError{ValidationError{maxErr}}
+		return []ValidationError{{maxErr}}
 	}
 	return nil
 }
@@ -111,7 +111,7 @@ func (m *minimum) SetSchema(v map[string]json.RawMessage) error {
 func (m minimum) Validate(v interface{}) []ValidationError {
 	normalized, err := normalizeNumber(v)
 	if err != nil {
-		return []ValidationError{ValidationError{err.Error()}}
+		return []ValidationError{{err.Error()}}
 	}
 	var isLarger bool
 	switch n := normalized.(type) {
@@ -127,7 +127,7 @@ func (m minimum) Validate(v interface{}) []ValidationError {
 	}
 	if isLarger {
 		minErr := fmt.Sprintf("Value must be larger than %s.", m)
-		return []ValidationError{ValidationError{minErr}}
+		return []ValidationError{{minErr}}
 	}
 	return nil
 }
@@ -149,7 +149,7 @@ func (m *multipleOf) UnmarshalJSON(b []byte) error {
 func (m multipleOf) Validate(v interface{}) []ValidationError {
 	normalized, err := normalizeNumber(v)
 	if err != nil {
-		return []ValidationError{ValidationError{err.Error()}}
+		return []ValidationError{{err.Error()}}
 	}
 	n, ok := normalized.(int64)
 	if !ok {

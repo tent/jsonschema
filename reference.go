@@ -58,17 +58,35 @@ func (e *EmbeddedSchemas) UnmarshalSingle(b []byte) error {
 // resolveRefs starts a depth-first search through a document for schemas containing
 // the 'ref' validator. It completely resolves each one found.
 func (s *Schema) resolveRefs(loadExternal bool) {
-	s.resolveSelfAndBelow(*s, loadExternal)
+	s.resolveSelfAndBelow(*s, *s, loadExternal)
 }
 
-func (s *Schema) resolveSelfAndBelow(rootSchema Schema, loadExternal bool) {
+func (s *Schema) resolveSelfAndBelow(parentSchema, rootSchema Schema, loadExternal bool) {
+	if parentSchema.id != "" && parentSchema.id != s.id {
+		s.parentId = parentSchema.id
+		sURL, sURLErr := url.Parse(s.id)
+		pURL, pURLErr := url.Parse(parentSchema.id)
+		if sURLErr == nil && pURLErr == nil && pURL.IsAbs() && !sURL.IsAbs() {
+			if strings.HasPrefix(s.id, "#") {
+				pURL.Fragment = strings.TrimPrefix(s.id, "#")
+			} else {
+				s.id = pURL.ResolveReference(sURL).String()
+			}
+		}
+	}
+	cacheKey, err := resolveCacheKey(s.id)
+	if err == nil {
+		if _, ok := rootSchema.Cache[cacheKey]; !ok {
+			rootSchema.Cache[cacheKey] = s
+		}
+	}
 	s.resolveSelf(rootSchema, loadExternal)
 	s.resolveBelow(rootSchema, loadExternal)
 }
 
 func (s *Schema) resolveSelf(rootSchema Schema, loadExternal bool) {
 	if str, ok := s.hasRef(); ok {
-		sch, err := refToSchema(str, rootSchema, loadExternal)
+		sch, err := s.refToSchema(str, rootSchema, loadExternal)
 		if err != nil {
 			return
 		}
@@ -85,7 +103,7 @@ func (s *Schema) resolveBelow(rootSchema Schema, loadExternal bool) {
 	s.resolved = true
 	for _, n := range s.nodes {
 		for _, sch := range n.EmbeddedSchemas {
-			sch.resolveSelfAndBelow(rootSchema, loadExternal)
+			sch.resolveSelfAndBelow(*s, rootSchema, loadExternal)
 		}
 	}
 }
@@ -102,11 +120,19 @@ func (s *Schema) hasRef() (string, bool) {
 // TODO: This is hacky. Look into using a library like gojsonpointer[1] instead.
 //
 // [1] https://github.com/xeipuuv/gojsonpointer
-func refToSchema(str string, rootSchema Schema, loadExternal bool) (*Schema, error) {
+func (s *Schema) refToSchema(str string, rootSchema Schema, loadExternal bool) (*Schema, error) {
+	parentURL, err := url.Parse(s.parentId)
+	if err == nil && parentURL.IsAbs() {
+		sURL, err := url.Parse(str)
+		if err == nil && !sURL.IsAbs() && !strings.HasPrefix(str, "#") {
+			str = strings.TrimSuffix(s.parentId, "/") + "/" + strings.TrimPrefix(str, "/")
+		}
+	}
+
 	var split []string
 	url, err := url.Parse(str)
-	if err == nil && url.IsAbs() {
-		cacheKey := strings.TrimSuffix(str, url.Fragment)
+	cacheKey, cacheKeyErr := resolveCacheKey(str)
+	if err == nil && cacheKeyErr == nil {
 		cachedSchema, ok := rootSchema.Cache[cacheKey]
 		if ok {
 			rootSchema = *cachedSchema
@@ -168,4 +194,13 @@ func resolveLocalPath(split []string, rootSchema Schema, str string) (*Schema, e
 		}
 	}
 	return new(Schema), fmt.Errorf("failed to resolve %s", str)
+}
+
+func resolveCacheKey(id string) (string, error) {
+	url, err := url.Parse(id)
+	if err == nil && url.IsAbs() {
+		url.Fragment = ""
+		return strings.TrimSuffix(url.String(), "/"), nil
+	}
+	return "", fmt.Errorf("failed to resolve cache key for %s", id)
 }

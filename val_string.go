@@ -81,26 +81,26 @@ func (f format) Validate(v interface{}) []ValidationError {
 	switch f {
 	case "date-time":
 		if !dateTimeRegexp.MatchString(s) {
-			return []ValidationError{ValidationError{"Value must conform to RFC3339."}}
+			return []ValidationError{{"Value must conform to RFC3339."}}
 		}
 	case "uri":
 		if _, err := url.ParseRequestURI(s); err != nil {
-			return []ValidationError{ValidationError{"Value must be a valid URI, according to RFC3986."}}
+			return []ValidationError{{"Value must be a valid URI, according to RFC3986."}}
 		}
 	case "email":
 		if !mailRegexp.MatchString(s) {
-			return []ValidationError{ValidationError{"Value must be a valid email address, according to RFC5322."}}
+			return []ValidationError{{"Value must be a valid email address, according to RFC5322."}}
 		}
 	case "ipv4":
 		if net.ParseIP(s).To4() == nil {
-			return []ValidationError{ValidationError{"Value must be a valid IPv4 address."}}
+			return []ValidationError{{"Value must be a valid IPv4 address."}}
 		}
 	case "ipv6":
 		if net.ParseIP(s).To16() == nil {
-			return []ValidationError{ValidationError{"Value must be a valid IPv6 address."}}
+			return []ValidationError{{"Value must be a valid IPv6 address."}}
 		}
 	case "hostname":
-		formatErr := []ValidationError{ValidationError{"Value must be a valid hostname."}}
+		formatErr := []ValidationError{{"Value must be a valid hostname."}}
 		if !hostnameRegexp.MatchString(s) || utf8.RuneCountInString(s) > 255 {
 			return formatErr
 		}
