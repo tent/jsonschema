@@ -70,8 +70,7 @@ func (s *Schema) resolveSelfAndBelow(parentSchema, rootSchema Schema, loadExtern
 			if strings.HasPrefix(s.id, "#") {
 				pURL.Fragment = strings.TrimPrefix(s.id, "#")
 			} else {
-				pURL.Path = s.id
-				s.id = pURL.String()
+				s.id = pURL.ResolveReference(sURL).String()
 			}
 		}
 	}
