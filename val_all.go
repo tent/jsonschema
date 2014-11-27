@@ -34,7 +34,7 @@ func (a anyOf) Validate(v interface{}) []ValidationError {
 		}
 	}
 	return []ValidationError{
-		ValidationError{"Validation failed for each schema in 'anyOf'."}}
+		{"Validation failed for each schema in 'anyOf'."}}
 }
 
 type enum []interface{}
@@ -46,7 +46,7 @@ func (a enum) Validate(v interface{}) []ValidationError {
 		}
 	}
 	return []ValidationError{
-		ValidationError{fmt.Sprintf("Enum error. The data must be equal to one of these values %v.", a)}}
+		{fmt.Sprintf("Enum error. The data must be equal to one of these values %v.", a)}}
 }
 
 type not struct {
@@ -59,7 +59,7 @@ func (n not) Validate(v interface{}) []ValidationError {
 		return nil
 	}
 	if s.Validate(v) == nil {
-		return []ValidationError{ValidationError{"The 'not' schema didn't raise an error."}}
+		return []ValidationError{{"The 'not' schema didn't raise an error."}}
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func (a oneOf) Validate(v interface{}) []ValidationError {
 		}
 	}
 	if succeeded != 1 {
-		return []ValidationError{ValidationError{
+		return []ValidationError{{
 			fmt.Sprintf("Validation passed for %d schemas in 'oneOf'.", succeeded)}}
 	}
 	return nil
@@ -161,7 +161,7 @@ func (t typeValidator) Validate(v interface{}) []ValidationError {
 		for key := range t {
 			types = append(types, key)
 		}
-		return []ValidationError{ValidationError{
+		return []ValidationError{{
 			fmt.Sprintf("Value must be one of these types: %s.", types)}}
 	}
 	return nil

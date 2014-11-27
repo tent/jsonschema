@@ -114,7 +114,7 @@ func (i items) Validate(v interface{}) []ValidationError {
 				}
 				valErrs = append(valErrs, i.additionalItems.Validate(value)...)
 			} else if !i.additionalAllowed {
-				return []ValidationError{ValidationError{"Additional items aren't allowed."}}
+				return []ValidationError{{"Additional items aren't allowed."}}
 			}
 		}
 	}

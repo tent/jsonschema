@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-var notSupported = map[string]struct{}{"uniqueItems.json": struct{}{}}
+var notSupported = map[string]struct{}{"uniqueItems.json": {}}
 
 func TestDraft4(t *testing.T) {
 	testResources := filepath.Join("JSON-Schema-Test-Suite", "tests", "draft4")

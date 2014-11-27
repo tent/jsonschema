@@ -137,7 +137,7 @@ func (m maxProperties) Validate(v interface{}) []ValidationError {
 		return nil
 	}
 	if len(val) > int(m) {
-		return []ValidationError{ValidationError{
+		return []ValidationError{{
 			fmt.Sprintf("Object has more properties than maxProperties (%d > %d)", len(val), m)}}
 	}
 	return nil
@@ -163,7 +163,7 @@ func (m minProperties) Validate(v interface{}) []ValidationError {
 		return nil
 	}
 	if len(val) < int(m) {
-		return []ValidationError{ValidationError{
+		return []ValidationError{{
 			fmt.Sprintf("Object has fewer properties than minProperties (%d < %d)", len(val), m)}}
 	}
 	return nil
@@ -295,7 +295,7 @@ func (p properties) Validate(v interface{}) []ValidationError {
 			continue
 		}
 		if !p.additionalPropertiesBool {
-			valErrs = append([]ValidationError{ValidationError{"Additional properties aren't allowed"}})
+			valErrs = append([]ValidationError{{"Additional properties aren't allowed"}})
 		}
 	}
 	return valErrs
