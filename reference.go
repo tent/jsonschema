@@ -75,6 +75,12 @@ func (s *Schema) resolveSelfAndBelow(parentSchema, rootSchema Schema, loadExtern
 			}
 		}
 	}
+	cacheKey, err := resolveCacheKey(s.id)
+	if err == nil {
+		if _, ok := rootSchema.Cache[cacheKey]; !ok {
+			rootSchema.Cache[cacheKey] = s
+		}
+	}
 	s.resolveSelf(rootSchema, loadExternal)
 	s.resolveBelow(rootSchema, loadExternal)
 }
@@ -126,8 +132,8 @@ func (s *Schema) refToSchema(str string, rootSchema Schema, loadExternal bool) (
 
 	var split []string
 	url, err := url.Parse(str)
-	if err == nil && url.IsAbs() {
-		cacheKey := strings.TrimSuffix(str, url.Fragment)
+	cacheKey, cacheKeyErr := resolveCacheKey(str)
+	if err == nil && cacheKeyErr == nil {
 		cachedSchema, ok := rootSchema.Cache[cacheKey]
 		if ok {
 			rootSchema = *cachedSchema
@@ -189,4 +195,13 @@ func resolveLocalPath(split []string, rootSchema Schema, str string) (*Schema, e
 		}
 	}
 	return new(Schema), fmt.Errorf("failed to resolve %s", str)
+}
+
+func resolveCacheKey(id string) (string, error) {
+	url, err := url.Parse(id)
+	if err == nil && url.IsAbs() {
+		url.Fragment = ""
+		return strings.TrimSuffix(url.String(), "/"), nil
+	}
+	return "", fmt.Errorf("failed to resolve cache key for %s", id)
 }
