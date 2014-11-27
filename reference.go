@@ -126,7 +126,7 @@ func (s *Schema) refToSchema(str string, rootSchema Schema, loadExternal bool) (
 	if err == nil && parentURL.IsAbs() {
 		sURL, err := url.Parse(str)
 		if err == nil && !sURL.IsAbs() && !strings.HasPrefix(str, "#") {
-			str = s.parentId + str
+			str = strings.TrimSuffix(s.parentId, "/") + "/" + strings.TrimPrefix(str, "/")
 		}
 	}
 
