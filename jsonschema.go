@@ -51,24 +51,29 @@ type Validator interface {
 
 func Parse(schemaBytes io.Reader, loadExternalSchemas bool) (*Schema, error) {
 	s := &Schema{}
-	return s.Parse(schemaBytes, loadExternalSchemas)
+	return s, s.Parse(schemaBytes, loadExternalSchemas)
 }
 
 func ParseWithCache(schemaBytes io.Reader, loadExternalSchemas bool, schemaCache *map[string]*Schema) (*Schema, error) {
 	s := &Schema{}
 	s.Cache = *schemaCache
-	return s.Parse(schemaBytes, loadExternalSchemas)
+	return s, s.Parse(schemaBytes, loadExternalSchemas)
 }
 
-func (s *Schema) Parse(schemaBytes io.Reader, loadExternalSchemas bool) (*Schema, error) {
+func (s *Schema) Parse(schemaBytes io.Reader, loadExternalSchemas bool) error {
+	s.ParseWithoutRefs(schemaBytes)
+	s.ResolveRefs(loadExternalSchemas)
+	return nil
+}
+
+func (s *Schema) ParseWithoutRefs(schemaBytes io.Reader) error {
 	if s.Cache == nil {
 		s.Cache = make(map[string]*Schema)
 	}
 	if err := json.NewDecoder(schemaBytes).Decode(&s); err != nil {
-		return nil, err
+		return err
 	}
-	s.ResolveRefs(loadExternalSchemas)
-	return s, nil
+	return nil
 }
 
 func (s *Schema) Validate(v interface{}) []ValidationError {
