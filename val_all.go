@@ -162,7 +162,7 @@ func (t typeValidator) Validate(v interface{}) []ValidationError {
 			types = append(types, key)
 		}
 		return []ValidationError{{
-			fmt.Sprintf("Value must be one of these types: %s.", types)}}
+			fmt.Sprintf("Value must be one of these types: %s. Got %T: %v", types, v, v)}}
 	}
 	return nil
 }
