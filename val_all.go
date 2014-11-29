@@ -124,6 +124,10 @@ func (t *typeValidator) UnmarshalJSON(b []byte) error {
 }
 
 func (t typeValidator) Validate(v interface{}) []ValidationError {
+	if _, ok := t["any"]; ok {
+		return nil
+	}
+
 	var s string
 
 	switch x := v.(type) {
