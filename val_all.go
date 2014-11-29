@@ -124,6 +124,10 @@ func (t *typeValidator) UnmarshalJSON(b []byte) error {
 }
 
 func (t typeValidator) Validate(v interface{}) []ValidationError {
+	if _, ok := t["any"]; ok {
+		return nil
+	}
+
 	var s string
 
 	switch x := v.(type) {
@@ -162,7 +166,7 @@ func (t typeValidator) Validate(v interface{}) []ValidationError {
 			types = append(types, key)
 		}
 		return []ValidationError{{
-			fmt.Sprintf("Value must be one of these types: %s.", types)}}
+			fmt.Sprintf("Value must be one of these types: %s. Got %T: %v", types, v, v)}}
 	}
 	return nil
 }
