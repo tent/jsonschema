@@ -82,8 +82,6 @@ func testFileRunner(t *testing.T, failures, successes *int, schemaCache *map[str
 type testCase struct {
 	Description string          `json:"description"`
 	Schema      json.RawMessage `json:"schema"`
-	Properties  json.RawMessage `json:"properties"`
-	Required    json.RawMessage `json:"required"`
 	Tests       []testInstance  `json:"tests"`
 }
 
