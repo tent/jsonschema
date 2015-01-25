@@ -45,10 +45,10 @@ func (m *maximum) SetSchema(v map[string]json.RawMessage) error {
 	return nil
 }
 
-func (m maximum) Validate(v interface{}) []ValidationError {
+func (m maximum) Validate(keypath []string, v interface{}) []ValidationError {
 	normalized, err := normalizeNumber(v)
 	if err != nil {
-		return []ValidationError{{err.Error()}}
+		return []ValidationError{{keypath, err.Error()}}
 	}
 	var isLarger bool
 	switch n := normalized.(type) {
@@ -64,7 +64,7 @@ func (m maximum) Validate(v interface{}) []ValidationError {
 	}
 	if !isLarger {
 		maxErr := fmt.Sprintf("Value must be smaller than %s.", m)
-		return []ValidationError{{maxErr}}
+		return []ValidationError{{keypath, maxErr}}
 	}
 	return nil
 }
@@ -108,10 +108,10 @@ func (m *minimum) SetSchema(v map[string]json.RawMessage) error {
 	return nil
 }
 
-func (m minimum) Validate(v interface{}) []ValidationError {
+func (m minimum) Validate(keypath []string, v interface{}) []ValidationError {
 	normalized, err := normalizeNumber(v)
 	if err != nil {
-		return []ValidationError{{err.Error()}}
+		return []ValidationError{{keypath, err.Error()}}
 	}
 	var isLarger bool
 	switch n := normalized.(type) {
@@ -127,7 +127,7 @@ func (m minimum) Validate(v interface{}) []ValidationError {
 	}
 	if isLarger {
 		minErr := fmt.Sprintf("Value must be larger than %s.", m)
-		return []ValidationError{{minErr}}
+		return []ValidationError{{keypath, minErr}}
 	}
 	return nil
 }
@@ -146,17 +146,17 @@ func (m *multipleOf) UnmarshalJSON(b []byte) error {
 // Contrary to the spec, validation doesn't support floats in the schema
 // or the data being validated. This is because of issues with math.Mod,
 // e.g. math.Mod(0.0075, 0.0001) != 0.
-func (m multipleOf) Validate(v interface{}) []ValidationError {
+func (m multipleOf) Validate(keypath []string, v interface{}) []ValidationError {
 	normalized, err := normalizeNumber(v)
 	if err != nil {
-		return []ValidationError{{err.Error()}}
+		return []ValidationError{{keypath, err.Error()}}
 	}
 	n, ok := normalized.(int64)
 	if !ok {
 		return nil
 	}
 	if n%int64(m) != 0 {
-		mulErr := ValidationError{fmt.Sprintf("Value must be a multiple of %d.", m)}
+		mulErr := ValidationError{keypath, fmt.Sprintf("Value must be a multiple of %d.", m)}
 		return []ValidationError{mulErr}
 	}
 	return nil

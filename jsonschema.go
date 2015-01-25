@@ -6,6 +6,8 @@ import (
 	"io"
 	"reflect"
 	"strings"
+
+	jsonpointer "github.com/rnd42/go-jsonpointer"
 )
 
 var validatorMap = map[string]reflect.Type{
@@ -46,7 +48,7 @@ var validatorMap = map[string]reflect.Type{
 	"type":  reflect.TypeOf(typeValidator{})}
 
 type Validator interface {
-	Validate(interface{}) []ValidationError
+	Validate([]string, interface{}) []ValidationError
 }
 
 func Parse(schemaBytes io.Reader, loadExternalSchemas bool) (*Schema, error) {
@@ -76,10 +78,10 @@ func (s *Schema) ParseWithoutRefs(schemaBytes io.Reader) error {
 	return nil
 }
 
-func (s *Schema) Validate(v interface{}) []ValidationError {
+func (s *Schema) Validate(keypath []string, v interface{}) []ValidationError {
 	var valErrs []ValidationError
 	for _, n := range s.nodes {
-		valErrs = append(valErrs, n.Validator.Validate(v)...)
+		valErrs = append(valErrs, n.Validator.Validate(keypath, v)...)
 	}
 	return valErrs
 }
@@ -168,5 +170,14 @@ type NeighborChecker interface {
 }
 
 type ValidationError struct {
+	Keypath     []string
 	Description string
+}
+
+func (e *ValidationError) JSONPointer() string {
+	return jsonpointer.NewJSONPointerFromTokens(&e.Keypath).String()
+}
+
+func (e *ValidationError) DotNotation() string {
+	return strings.Join(e.Keypath, ".")
 }

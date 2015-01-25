@@ -33,7 +33,7 @@ func (a *additionalProperties) CheckNeighbors(m map[string]Node) {
 	return
 }
 
-func (a additionalProperties) Validate(v interface{}) []ValidationError {
+func (a additionalProperties) Validate(keypath []string, v interface{}) []ValidationError {
 	// In this case validation will be handled by the "properties" validator.
 	if a.propertiesIsNeighbor {
 		return nil
@@ -48,7 +48,7 @@ func (a additionalProperties) Validate(v interface{}) []ValidationError {
 		return nil
 	}
 	for _, dataVal := range dataMap {
-		valErrs = append(valErrs, s.Validate(dataVal)...)
+		valErrs = append(valErrs, s.Validate(keypath, dataVal)...)
 	}
 	return valErrs
 }
@@ -86,7 +86,7 @@ func (d *dependencies) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (d dependencies) Validate(v interface{}) []ValidationError {
+func (d dependencies) Validate(keypath []string, v interface{}) []ValidationError {
 	var valErrs []ValidationError
 	val, ok := v.(map[string]interface{})
 	if !ok {
@@ -98,7 +98,7 @@ func (d dependencies) Validate(v interface{}) []ValidationError {
 		if _, ok := val[key]; !ok {
 			continue
 		}
-		valErrs = append(valErrs, schema.Validate(v)...)
+		valErrs = append(valErrs, schema.Validate(keypath, v)...)
 	}
 
 	// Handle property dependencies.
@@ -108,7 +108,7 @@ func (d dependencies) Validate(v interface{}) []ValidationError {
 		}
 		for a := range set {
 			if _, ok := val[a]; !ok {
-				valErrs = append(valErrs, ValidationError{
+				valErrs = append(valErrs, ValidationError{keypath,
 					fmt.Sprintf("instance does not have a property with the name %s", a)})
 			}
 		}
@@ -131,13 +131,13 @@ func (m *maxProperties) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (m maxProperties) Validate(v interface{}) []ValidationError {
+func (m maxProperties) Validate(keypath []string, v interface{}) []ValidationError {
 	val, ok := v.(map[string]interface{})
 	if !ok {
 		return nil
 	}
 	if len(val) > int(m) {
-		return []ValidationError{{
+		return []ValidationError{{keypath,
 			fmt.Sprintf("Object has more properties than maxProperties (%d > %d)", len(val), m)}}
 	}
 	return nil
@@ -157,13 +157,13 @@ func (m *minProperties) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (m minProperties) Validate(v interface{}) []ValidationError {
+func (m minProperties) Validate(keypath []string, v interface{}) []ValidationError {
 	val, ok := v.(map[string]interface{})
 	if !ok {
 		return nil
 	}
 	if len(val) < int(m) {
-		return []ValidationError{{
+		return []ValidationError{{keypath,
 			fmt.Sprintf("Object has fewer properties than minProperties (%d < %d)", len(val), m)}}
 	}
 	return nil
@@ -209,7 +209,7 @@ func (p *patternProperties) CheckNeighbors(m map[string]Node) {
 	return
 }
 
-func (p patternProperties) Validate(v interface{}) []ValidationError {
+func (p patternProperties) Validate(keypath []string, v interface{}) []ValidationError {
 	if p.disabled {
 		return nil
 	}
@@ -221,7 +221,7 @@ func (p patternProperties) Validate(v interface{}) []ValidationError {
 	for dataKey, dataVal := range data {
 		for _, val := range p.object {
 			if val.regexp.MatchString(dataKey) {
-				valErrs = append(valErrs, val.schema.Validate(dataVal)...)
+				valErrs = append(valErrs, val.schema.Validate(append(keypath, dataKey), dataVal)...)
 			}
 		}
 	}
@@ -266,7 +266,7 @@ func (p *properties) CheckNeighbors(m map[string]Node) {
 	return
 }
 
-func (p properties) Validate(v interface{}) []ValidationError {
+func (p properties) Validate(keypath []string, v interface{}) []ValidationError {
 	var valErrs []ValidationError
 	dataMap, ok := v.(map[string]interface{})
 	if !ok {
@@ -276,13 +276,13 @@ func (p properties) Validate(v interface{}) []ValidationError {
 		var match = false
 		schema, ok := p.EmbeddedSchemas[dataKey]
 		if ok {
-			valErrs = append(valErrs, schema.Validate(dataVal)...)
+			valErrs = append(valErrs, schema.Validate(append(keypath, dataKey), dataVal)...)
 			match = true
 		}
 		if p.patternProperties != nil {
 			for _, val := range p.patternProperties.object {
 				if val.regexp.MatchString(dataKey) {
-					valErrs = append(valErrs, val.schema.Validate(dataVal)...)
+					valErrs = append(valErrs, val.schema.Validate(append(keypath, dataKey), dataVal)...)
 					match = true
 				}
 			}
@@ -291,11 +291,11 @@ func (p properties) Validate(v interface{}) []ValidationError {
 			continue
 		}
 		if p.additionalPropertiesObject != nil {
-			valErrs = append(valErrs, p.additionalPropertiesObject.Validate(dataVal)...)
+			valErrs = append(valErrs, p.additionalPropertiesObject.Validate(append(keypath, dataKey), dataVal)...)
 			continue
 		}
 		if !p.additionalPropertiesBool {
-			valErrs = append([]ValidationError{{"Additional properties aren't allowed"}})
+			valErrs = append([]ValidationError{{keypath, fmt.Sprintf("Additional properties aren't allowed, found \"%v\" as one of its keys", dataKey)}})
 		}
 	}
 	return valErrs
@@ -315,7 +315,7 @@ func (r *required) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (r required) Validate(v interface{}) []ValidationError {
+func (r required) Validate(keypath []string, v interface{}) []ValidationError {
 	var valErrs []ValidationError
 	data, ok := v.(map[string]interface{})
 	if !ok {
@@ -323,7 +323,7 @@ func (r required) Validate(v interface{}) []ValidationError {
 	}
 	for key := range r {
 		if _, ok := data[key]; !ok {
-			valErrs = append(valErrs, ValidationError{fmt.Sprintf("Required error. The data must be an object with %v as one of its keys", key)})
+			valErrs = append(valErrs, ValidationError{keypath, fmt.Sprintf("Required error. The data must be an object with \"%v\" as one of its keys", key)})
 		}
 	}
 	return valErrs
