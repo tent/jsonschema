@@ -295,7 +295,7 @@ func (p properties) Validate(keypath []string, v interface{}) []ValidationError 
 			continue
 		}
 		if !p.additionalPropertiesBool {
-			valErrs = append([]ValidationError{{keypath, "Additional properties aren't allowed"}})
+			valErrs = append([]ValidationError{{keypath, fmt.Sprintf("Additional properties aren't allowed, found \"%v\" as one of its keys", dataKey)}})
 		}
 	}
 	return valErrs
@@ -323,7 +323,7 @@ func (r required) Validate(keypath []string, v interface{}) []ValidationError {
 	}
 	for key := range r {
 		if _, ok := data[key]; !ok {
-			valErrs = append(valErrs, ValidationError{keypath, fmt.Sprintf("Required error. The data must be an object with %v as one of its keys", key)})
+			valErrs = append(valErrs, ValidationError{keypath, fmt.Sprintf("Required error. The data must be an object with \"%v\" as one of its keys", key)})
 		}
 	}
 	return valErrs

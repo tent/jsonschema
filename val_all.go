@@ -166,7 +166,7 @@ func (t typeValidator) Validate(keypath []string, v interface{}) []ValidationErr
 			types = append(types, key)
 		}
 		return []ValidationError{{keypath,
-			fmt.Sprintf("Value must be one of these types: %s. Got %T: %v", types, v, v)}}
+			fmt.Sprintf("Value must be one of these types: %s. Got %s", types, s)}}
 	}
 	return nil
 }
