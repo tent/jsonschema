@@ -19,19 +19,19 @@ func (a *additionalItems) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &a.EmbeddedSchemas)
 }
 
-func (a additionalItems) Validate(v interface{}) []ValidationError {
+func (a additionalItems) Validate(keypath []string, v interface{}) []ValidationError {
 	return nil
 }
 
 type maxItems int
 
-func (m maxItems) Validate(v interface{}) []ValidationError {
+func (m maxItems) Validate(keypath []string, v interface{}) []ValidationError {
 	l, ok := v.([]interface{})
 	if !ok {
 		return nil
 	}
 	if len(l) > int(m) {
-		maxErr := ValidationError{fmt.Sprintf("Array must have fewer than %d items.", m)}
+		maxErr := ValidationError{keypath, fmt.Sprintf("Array must have fewer than %d items.", m)}
 		return []ValidationError{maxErr}
 	}
 	return nil
@@ -39,13 +39,13 @@ func (m maxItems) Validate(v interface{}) []ValidationError {
 
 type minItems int
 
-func (m minItems) Validate(v interface{}) []ValidationError {
+func (m minItems) Validate(keypath []string, v interface{}) []ValidationError {
 	l, ok := v.([]interface{})
 	if !ok {
 		return nil
 	}
 	if len(l) < int(m) {
-		minErr := ValidationError{fmt.Sprintf("Array must have more than %d items.", m)}
+		minErr := ValidationError{keypath, fmt.Sprintf("Array must have more than %d items.", m)}
 		return []ValidationError{minErr}
 	}
 	return nil
@@ -93,28 +93,28 @@ func (i *items) CheckNeighbors(m map[string]Node) {
 	return
 }
 
-func (i items) Validate(v interface{}) []ValidationError {
+func (i items) Validate(keypath []string, v interface{}) []ValidationError {
 	var valErrs []ValidationError
 	instances, ok := v.([]interface{})
 	if !ok {
 		return nil
 	}
 	if s, ok := i.EmbeddedSchemas[""]; ok {
-		for _, value := range instances {
-			valErrs = append(valErrs, s.Validate(value)...)
+		for pos, value := range instances {
+			valErrs = append(valErrs, s.Validate(append(keypath, strconv.Itoa(pos)), value)...)
 		}
 	} else if len(i.schemaSlice) > 0 {
 		for pos, value := range instances {
 			if pos <= len(i.schemaSlice)-1 {
 				s := i.schemaSlice[pos]
-				valErrs = append(valErrs, s.Validate(value)...)
+				valErrs = append(valErrs, s.Validate(append(keypath, strconv.Itoa(pos)), value)...)
 			} else if i.additionalAllowed {
 				if i.additionalItems == nil {
 					continue
 				}
-				valErrs = append(valErrs, i.additionalItems.Validate(value)...)
+				valErrs = append(valErrs, i.additionalItems.Validate(keypath, value)...)
 			} else if !i.additionalAllowed {
-				return []ValidationError{{"Additional items aren't allowed."}}
+				return []ValidationError{{keypath, "Additional items aren't allowed."}}
 			}
 		}
 	}

@@ -16,9 +16,9 @@ type allOf struct {
 // array of schemas, not an object or a single schema.
 //
 // This (and similar validators) need custom UnmarshalJSON methods.
-func (a allOf) Validate(v interface{}) (valErrs []ValidationError) {
+func (a allOf) Validate(keypath []string, v interface{}) (valErrs []ValidationError) {
 	for _, s := range a.EmbeddedSchemas {
-		valErrs = append(valErrs, s.Validate(v)...)
+		valErrs = append(valErrs, s.Validate(keypath, v)...)
 	}
 	return
 }
@@ -27,39 +27,39 @@ type anyOf struct {
 	EmbeddedSchemas
 }
 
-func (a anyOf) Validate(v interface{}) []ValidationError {
+func (a anyOf) Validate(keypath []string, v interface{}) []ValidationError {
 	for _, s := range a.EmbeddedSchemas {
-		if s.Validate(v) == nil {
+		if s.Validate(keypath, v) == nil {
 			return nil
 		}
 	}
 	return []ValidationError{
-		{"Validation failed for each schema in 'anyOf'."}}
+		{keypath, "Validation failed for each schema in 'anyOf'."}}
 }
 
 type enum []interface{}
 
-func (a enum) Validate(v interface{}) []ValidationError {
+func (a enum) Validate(keypath []string, v interface{}) []ValidationError {
 	for _, b := range a {
 		if DeepEqual(v, b) {
 			return nil
 		}
 	}
 	return []ValidationError{
-		{fmt.Sprintf("Enum error. The data must be equal to one of these values %v.", a)}}
+		{keypath, fmt.Sprintf("Enum error. The data must be equal to one of these values %v.", a)}}
 }
 
 type not struct {
 	EmbeddedSchemas
 }
 
-func (n not) Validate(v interface{}) []ValidationError {
+func (n not) Validate(keypath []string, v interface{}) []ValidationError {
 	s, ok := n.EmbeddedSchemas[""]
 	if !ok {
 		return nil
 	}
-	if s.Validate(v) == nil {
-		return []ValidationError{{"The 'not' schema didn't raise an error."}}
+	if s.Validate(keypath, v) == nil {
+		return []ValidationError{{keypath, "The 'not' schema didn't raise an error."}}
 	}
 	return nil
 }
@@ -68,15 +68,15 @@ type oneOf struct {
 	EmbeddedSchemas
 }
 
-func (a oneOf) Validate(v interface{}) []ValidationError {
+func (a oneOf) Validate(keypath []string, v interface{}) []ValidationError {
 	var succeeded int
 	for _, s := range a.EmbeddedSchemas {
-		if s.Validate(v) == nil {
+		if s.Validate(keypath, v) == nil {
 			succeeded++
 		}
 	}
 	if succeeded != 1 {
-		return []ValidationError{{
+		return []ValidationError{{keypath,
 			fmt.Sprintf("Validation passed for %d schemas in 'oneOf'.", succeeded)}}
 	}
 	return nil
@@ -90,13 +90,13 @@ type other struct {
 	EmbeddedSchemas
 }
 
-func (o other) Validate(v interface{}) []ValidationError {
+func (o other) Validate(keypath []string, v interface{}) []ValidationError {
 	return nil
 }
 
 type ref string
 
-func (r ref) Validate(v interface{}) []ValidationError {
+func (r ref) Validate(keypath []string, v interface{}) []ValidationError {
 	return nil
 }
 
@@ -123,7 +123,7 @@ func (t *typeValidator) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (t typeValidator) Validate(v interface{}) []ValidationError {
+func (t typeValidator) Validate(keypath []string, v interface{}) []ValidationError {
 	if _, ok := t["any"]; ok {
 		return nil
 	}
@@ -165,7 +165,7 @@ func (t typeValidator) Validate(v interface{}) []ValidationError {
 		for key := range t {
 			types = append(types, key)
 		}
-		return []ValidationError{{
+		return []ValidationError{{keypath,
 			fmt.Sprintf("Value must be one of these types: %s. Got %T: %v", types, v, v)}}
 	}
 	return nil

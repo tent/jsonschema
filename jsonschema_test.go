@@ -12,6 +12,26 @@ import (
 
 var notSupported = map[string]struct{}{"uniqueItems.json": {}}
 
+func TestJSONPointerKeypath(t *testing.T) {
+	keypath := []string{"foo", "bar", "10", "baz"}
+	err := &ValidationError{keypath, ""}
+	str := err.JSONPointer()
+	expectedStr := "/foo/bar/10/baz"
+	if str != expectedStr {
+		t.Error(errors.New(fmt.Sprintf("Expected \"%s\" and got \"%s\"", expectedStr, str)))
+	}
+}
+
+func TestDotNotationKeypath(t *testing.T) {
+	keypath := []string{"foo", "bar", "10", "baz"}
+	err := &ValidationError{keypath, ""}
+	str := err.DotNotation()
+	expectedStr := "foo.bar.10.baz"
+	if str != expectedStr {
+		t.Error(errors.New(fmt.Sprintf("Expected \"%s\" and got \"%s\"", expectedStr, str)))
+	}
+}
+
 func TestDraft4(t *testing.T) {
 	suites := []string{
 		filepath.Join("JSON-Schema-Test-Suite", "tests", "draft4"),
@@ -65,7 +85,7 @@ func testFileRunner(t *testing.T, failures, successes *int, schemaCache *map[str
 				decoder := json.NewDecoder(bytes.NewReader(tst.Data))
 				decoder.UseNumber()
 				decoder.Decode(&data)
-				errorList := schema.Validate(data)
+				errorList := schema.Validate(nil, data)
 				err = correctValidation(path, cse, tst, errorList)
 				if err != nil {
 					t.Error(failureMessage(err, path, cse, tst, errorList))
