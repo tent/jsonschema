@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strings"
 
-	jsonpointer "github.com/rnd42/go-jsonpointer"
+	jsonpointer "github.com/cupcake/jsonschema/Godeps/_workspace/src/github.com/rnd42/go-jsonpointer"
 )
 
 var validatorMap = map[string]reflect.Type{
